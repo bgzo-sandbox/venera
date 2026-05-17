@@ -21,6 +21,7 @@ import 'package:venera/utils/opencc.dart';
 import 'package:venera/utils/tags_translation.dart';
 import 'package:venera/utils/translations.dart';
 import 'foundation/appdata.dart';
+import 'package:venera/utils/anime4k/anime4k_service.dart';
 
 extension _FutureInit<T> on Future<T> {
   /// Prevent unhandled exception
@@ -67,6 +68,8 @@ Future<void> init() async {
   if (App.isMobile) {
     handleLinks();
   }
+  // 初始化 Anime4K 服务
+  await Anime4KService.instance.init();
   FlutterError.onError = (details) {
     Log.error("Unhandled Exception", "${details.exception}\n${details.stack}");
   };
