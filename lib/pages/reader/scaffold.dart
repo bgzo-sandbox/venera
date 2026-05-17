@@ -29,12 +29,15 @@ class _ReaderSafeAreaScope extends InheritedWidget {
 
 class _ReaderScaffoldState extends State<_ReaderScaffold> {
   bool _isOpen = false;
+  bool _showAnime4KProcessed = true;
 
   static const kTopBarHeight = 56.0;
 
   static const kBottomBarHeight = 105.0;
 
   bool get isOpen => _isOpen;
+
+  bool get showAnime4KProcessed => _showAnime4KProcessed;
 
   bool get isReversed =>
       context.reader.mode == ReaderMode.galleryRightToLeft ||
@@ -164,6 +167,50 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
     setState(() {});
   }
 
+  bool get isAnime4KEnabled =>
+      appdata.settings.getReaderSetting(
+        context.reader.cid,
+        context.reader.type.sourceKey,
+        'enableAnime4K',
+      ) ==
+      true;
+
+  void toggleAnime4KDisplay() {
+    setState(() {
+      _showAnime4KProcessed = !_showAnime4KProcessed;
+    });
+    context.reader._imageViewController?.refreshVisibleImages();
+  }
+
+  _Anime4KPageStatus get anime4KPageStatus =>
+      context.reader._imageViewController?.getAnime4KPageStatus() ??
+      const _Anime4KPageStatus(
+        totalImages: 0,
+        processedImages: 0,
+        processingImages: 0,
+      );
+
+  String get anime4KStatusText {
+    if (!isAnime4KEnabled) {
+      return 'Anime4K 已关闭';
+    }
+    final status = anime4KPageStatus;
+    final prefix = _showAnime4KProcessed ? '显示 Anime4K' : '显示原图';
+    if (!status.hasImages) {
+      return '$prefix · 无图片';
+    }
+    if (status.fullyProcessed) {
+      return '$prefix · 已超分';
+    }
+    if (status.isProcessing) {
+      return '$prefix · 处理中';
+    }
+    if (status.processedImages > 0) {
+      return '$prefix · 部分超分';
+    }
+    return '$prefix · 未超分';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOnChapterCommentsPage = context.reader.isOnChapterCommentsPage;
@@ -282,6 +329,18 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
                   onPressed: openSetting,
                 ),
               ),
+              if (isAnime4KEnabled)
+                Tooltip(
+                  message: _showAnime4KProcessed ? '切换到原图' : '切换到 Anime4K',
+                  child: IconButton(
+                    icon: Icon(
+                      _showAnime4KProcessed
+                          ? Icons.compare_outlined
+                          : Icons.auto_awesome,
+                    ),
+                    onPressed: toggleAnime4KDisplay,
+                  ),
+                ),
               const SizedBox(width: 8),
             ],
           ),
@@ -574,6 +633,22 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
                       ),
                       child: Center(child: Text(text)),
                     ).paddingLeft(16),
+                  if (!small && isAnime4KEnabled)
+                    Container(
+                      height: 24,
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          anime4KStatusText,
+                          style: ts.s12,
+                        ),
+                      ),
+                    ),
                   const Spacer(),
                   for (var button in buttons)
                     if (!small)

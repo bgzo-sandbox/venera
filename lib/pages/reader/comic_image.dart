@@ -88,6 +88,18 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
 
   static final Map<int, Size> _cache = {};
 
+  bool get hasAnime4KResult => _upscaledBytes != null;
+
+  bool get isAnime4KProcessing => _isUpscaling;
+
+  String? get readerImageKey {
+    final source = _getAnime4KSourceProvider(widget.image);
+    if (source is ReaderImageProvider) {
+      return source.imageKey;
+    }
+    return null;
+  }
+
   static clear() => _cache.clear();
 
   @override
@@ -495,7 +507,10 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
         var width = widget.width;
         var height = widget.height;
 
-        if (_upscaledBytes != null) {
+        final showAnime4K =
+            _upscaledBytes != null && context.readerScaffold.showAnime4KProcessed;
+
+        if (showAnime4K) {
           Widget result = Image.memory(
             _upscaledBytes!,
             width: width,
