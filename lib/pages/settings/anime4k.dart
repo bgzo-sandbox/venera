@@ -38,7 +38,7 @@ class _Anime4KSettingsState extends State<Anime4KSettings> {
         _SwitchSetting(
           title: '启用',
           settingKey: 'enableAnime4K',
-          subtitle: '开启后，阅读器会在后台进行超分处理，当前使用的算法是 Anime4K。',
+          subtitle: '开启后，阅读器会在后台进行超分处理。',
           onChanged: () {
             setState(() {});
           },
@@ -47,7 +47,7 @@ class _Anime4KSettingsState extends State<Anime4KSettings> {
           _SwitchSetting(
             title: '网络图片',
             settingKey: 'enableAnime4KForNetwork',
-            subtitle: '在线阅读时也执行超分处理，当前算法为 Anime4K。会增加加载后的处理时间和内存占用。',
+            subtitle: '在线阅读时也执行超分处理，处理完成后会替换图片，会增加处理时间（有延迟）和内存占用。',
             onChanged: () {
               setState(() {});
             },
