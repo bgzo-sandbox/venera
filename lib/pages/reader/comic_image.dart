@@ -100,6 +100,13 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     return null;
   }
 
+  void _notifyReaderScaffold() {
+    if (!mounted) {
+      return;
+    }
+    context.readerScaffold.update();
+  }
+
   static clear() => _cache.clear();
 
   @override
@@ -200,6 +207,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     setState(() {
       _isUpscaling = true;
     });
+    _notifyReaderScaffold();
 
     final scaleFactor =
       (_getAnime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
@@ -225,6 +233,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       _upscaledBytes = result;
       _isUpscaling = false;
     });
+    _notifyReaderScaffold();
 
     Log.warning(
       'Anime4K',
@@ -286,6 +295,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       _upscaledBytes = null;
       _isUpscaling = false;
       _resolveImage();
+      _notifyReaderScaffold();
       _triggerImageUpscale();
     }
   }
@@ -510,41 +520,6 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
         final showAnime4K =
             _upscaledBytes != null && context.readerScaffold.showAnime4KProcessed;
 
-        if (showAnime4K) {
-          Widget result = Image.memory(
-            _upscaledBytes!,
-            width: width,
-            height: height,
-            color: widget.color,
-            opacity: widget.opacity,
-            colorBlendMode: widget.colorBlendMode,
-            fit: widget.fit,
-            alignment: widget.alignment,
-            repeat: widget.repeat,
-            centerSlice: widget.centerSlice,
-            matchTextDirection: widget.matchTextDirection,
-            gaplessPlayback: widget.gaplessPlayback,
-            isAntiAlias: widget.isAntiAlias,
-            filterQuality: widget.filterQuality,
-            excludeFromSemantics: widget.excludeFromSemantics,
-          );
-
-          if (!widget.excludeFromSemantics) {
-            result = Semantics(
-              container: widget.semanticLabel != null,
-              image: true,
-              label: widget.semanticLabel ?? '',
-              child: result,
-            );
-          }
-
-          return SizedBox(
-            width: width,
-            height: height,
-            child: Center(child: result),
-          );
-        }
-
         if (_imageInfo != null) {
           // Record the height and the width of the image
           _cache[widget.image.hashCode] = Size(
@@ -574,7 +549,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
 
         if (_imageInfo != null) {
           // build image
-          Widget result = RawImage(
+          Widget originalImage = RawImage(
             // Do not clone the image, because RawImage is a stateless wrapper.
             // The image will be disposed by this state object when it is not needed
             // anymore, such as when it is unmounted or when the image stream pushes
@@ -596,6 +571,44 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
             isAntiAlias: widget.isAntiAlias,
             filterQuality: widget.filterQuality,
           );
+
+          Widget result;
+          if (showAnime4K) {
+            result = Stack(
+              fit: StackFit.passthrough,
+              alignment: Alignment.center,
+              children: [
+                originalImage,
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  child: Image.memory(
+                    _upscaledBytes!,
+                    width: width,
+                    height: height,
+                    color: widget.color,
+                    opacity: widget.opacity,
+                    colorBlendMode: widget.colorBlendMode,
+                    fit: widget.fit,
+                    alignment: widget.alignment,
+                    repeat: widget.repeat,
+                    centerSlice: widget.centerSlice,
+                    matchTextDirection: widget.matchTextDirection,
+                    gaplessPlayback: true,
+                    isAntiAlias: widget.isAntiAlias,
+                    filterQuality: widget.filterQuality,
+                    excludeFromSemantics: true,
+                  ),
+                  builder: (context, opacity, child) {
+                    return Opacity(opacity: opacity, child: child);
+                  },
+                ),
+              ],
+            );
+          } else {
+            result = originalImage;
+          }
 
           if (!widget.excludeFromSemantics) {
             result = Semantics(
