@@ -520,6 +520,57 @@ class __CustomImageProcessingState extends State<_CustomImageProcessing> {
       ),
       body: Column(
         children: [
+          // === Anime4K 超分设置区块 ===
+          _SwitchSetting(
+            title: 'Enable Anime4K Upscaling',
+            settingKey: 'enableAnime4K',
+            onChanged: () {
+              setState(() {});
+            },
+          ),
+          if (appdata.settings['enableAnime4K'] == true)
+            Column(
+              children: [
+                _SwitchSetting(
+                  title: 'Enable for network images',
+                  settingKey: 'enableAnime4KForNetwork',
+                  onChanged: () {
+                    setState(() {});
+                  },
+                ),
+                _SliderSetting(
+                  title: 'Anime4K Scale Factor',
+                  settingsIndex: 'anime4KScaleFactor',
+                  interval: 0.5,
+                  min: 1.0,
+                  max: 4.0,
+                  onChanged: () {
+                    setState(() {});
+                  },
+                ),
+                _SliderSetting(
+                  title: 'Anime4K Push Strength',
+                  settingsIndex: 'anime4KPushStrength',
+                  interval: 0.01,
+                  min: 0.0,
+                  max: 1.0,
+                  onChanged: () {
+                    setState(() {});
+                  },
+                ),
+                _SliderSetting(
+                  title: 'Anime4K Gradient Refine Strength',
+                  settingsIndex: 'anime4KPushGradStrength',
+                  interval: 0.01,
+                  min: 0.0,
+                  max: 2.0,
+                  onChanged: () {
+                    setState(() {});
+                  },
+                ),
+              ],
+            ),
+          // === END Anime4K 超分设置区块 ===
           _SwitchSetting(
             title: "Enable".tl,
             settingKey: "enableCustomImageProcessing",
