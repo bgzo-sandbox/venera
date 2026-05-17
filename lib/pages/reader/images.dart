@@ -735,9 +735,7 @@ class _GalleryModeState extends State<_GalleryMode>
     }
 
     final (startIndex, endIndex) = range;
-    final currentKeys = reader.images!
-        .sublist(startIndex, endIndex)
-        .toSet();
+    final currentKeys = reader.images!.sublist(startIndex, endIndex).toSet();
     int processed = 0;
     int processing = 0;
     for (final imageState in imageStates) {

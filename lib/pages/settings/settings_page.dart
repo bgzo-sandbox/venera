@@ -62,7 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
     "Local Favorites",
     "APP",
     "Network",
-    "Anime4K",
+    "超分",
     "About",
     "Debug",
   ];

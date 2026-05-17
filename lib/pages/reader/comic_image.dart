@@ -112,7 +112,9 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    debugPrint('[Anime4KProbe] ComicImage.initState image=${widget.image.runtimeType}');
+    debugPrint(
+      '[Anime4KProbe] ComicImage.initState image=${widget.image.runtimeType}',
+    );
     WidgetsBinding.instance.addObserver(this);
     _scrollAwareContext = DisposableBuildContext<State<ComicImage>>(this);
     widget.onInit?.call(this);
@@ -132,7 +134,9 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
 
   @override
   void didChangeDependencies() {
-    debugPrint('[Anime4KProbe] ComicImage.didChangeDependencies image=${widget.image.runtimeType}');
+    debugPrint(
+      '[Anime4KProbe] ComicImage.didChangeDependencies image=${widget.image.runtimeType}',
+    );
     _updateInvertColors();
     _resolveImage();
 
@@ -148,7 +152,9 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   }
 
   Future<void> _triggerImageUpscale() async {
-    debugPrint('[Anime4KProbe] _triggerImageUpscale enter mounted=$mounted image=${widget.image.runtimeType}');
+    debugPrint(
+      '[Anime4KProbe] _triggerImageUpscale enter mounted=$mounted image=${widget.image.runtimeType}',
+    );
     if (!mounted || _isUpscaling || _upscaledBytes != null) {
       if (mounted && (_isUpscaling || _upscaledBytes != null)) {
         Log.warning(
@@ -161,19 +167,27 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     final enabled = _getAnime4KSetting<bool>('enableAnime4K') ?? false;
     debugPrint('[Anime4KProbe] effective enableAnime4K=$enabled');
     if (!enabled) {
-      Log.warning('Anime4K', 'skip trigger: effective setting enableAnime4K=false');
+      Log.warning(
+        'Anime4K',
+        'skip trigger: effective setting enableAnime4K=false',
+      );
       return;
     }
 
     final source = _getAnime4KSourceProvider(widget.image);
     if (source == null) {
-      Log.warning('Anime4K', 'skip trigger: unsupported image provider ${widget.image.runtimeType}');
+      Log.warning(
+        'Anime4K',
+        'skip trigger: unsupported image provider ${widget.image.runtimeType}',
+      );
       return;
     }
 
     final enableNetwork =
         _getAnime4KSetting<bool>('enableAnime4KForNetwork') ?? false;
-    debugPrint('[Anime4KProbe] effective enableAnime4KForNetwork=$enableNetwork source=${source.runtimeType}');
+    debugPrint(
+      '[Anime4KProbe] effective enableAnime4KForNetwork=$enableNetwork source=${source.runtimeType}',
+    );
     if (source is ReaderImageProvider &&
         !source.imageKey.startsWith('file://') &&
         !enableNetwork) {
@@ -210,12 +224,11 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     _notifyReaderScaffold();
 
     final scaleFactor =
-      (_getAnime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
+        (_getAnime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
     final pushStrength =
-      (_getAnime4KSetting<num>('anime4KPushStrength'))?.toDouble() ?? 0.31;
+        (_getAnime4KSetting<num>('anime4KPushStrength'))?.toDouble() ?? 0.31;
     final pushGradStrength =
-      (_getAnime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ??
-        1.0;
+        (_getAnime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ?? 1.0;
 
     final result = await Anime4KService.instance.processImage(
       imageBytes: imageBytes,
@@ -244,7 +257,11 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   T? _getAnime4KSetting<T>(String key) {
     final sourceKey = context.reader.type.comicSource?.key;
     if (sourceKey != null) {
-      return appdata.settings.getReaderSetting(context.reader.cid, sourceKey, key)
+      return appdata.settings.getReaderSetting(
+            context.reader.cid,
+            sourceKey,
+            key,
+          )
           as T?;
     }
     return appdata.settings.getDeviceReaderSetting(key) as T?;
@@ -267,7 +284,10 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     if (source is ReaderImageProvider) {
       return source.load(StreamController<ImageChunkEvent>(), () {});
     }
-    Log.warning('Anime4K', 'unsupported source provider for bytes ${source.runtimeType}');
+    Log.warning(
+      'Anime4K',
+      'unsupported source provider for bytes ${source.runtimeType}',
+    );
     return null;
   }
 
@@ -518,7 +538,8 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
         var height = widget.height;
 
         final showAnime4K =
-            _upscaledBytes != null && context.readerScaffold.showAnime4KProcessed;
+            _upscaledBytes != null &&
+            context.readerScaffold.showAnime4KProcessed;
 
         if (_imageInfo != null) {
           // Record the height and the width of the image

@@ -192,10 +192,10 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
 
   String get anime4KStatusText {
     if (!isAnime4KEnabled) {
-      return 'Anime4K 已关闭';
+      return '超分已关闭';
     }
     final status = anime4KPageStatus;
-    final prefix = _showAnime4KProcessed ? '显示 Anime4K' : '显示原图';
+    final prefix = _showAnime4KProcessed ? '显示超分' : '显示原图';
     if (!status.hasImages) {
       return '$prefix · 无图片';
     }
@@ -331,7 +331,7 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
               ),
               if (isAnime4KEnabled)
                 Tooltip(
-                  message: _showAnime4KProcessed ? '切换到原图' : '切换到 Anime4K',
+                  message: _showAnime4KProcessed ? '切换到原图' : '切换到超分',
                   child: IconButton(
                     icon: Icon(
                       _showAnime4KProcessed
@@ -643,10 +643,7 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Center(
-                        child: Text(
-                          anime4KStatusText,
-                          style: ts.s12,
-                        ),
+                        child: Text(anime4KStatusText, style: ts.s12),
                       ),
                     ),
                   const Spacer(),
