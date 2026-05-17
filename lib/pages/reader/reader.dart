@@ -871,4 +871,26 @@ abstract interface class _ImageViewController {
   Future<Uint8List?> getImageByOffset(Offset offset);
 
   String? getImageKeyByOffset(Offset offset);
+
+  _Anime4KPageStatus getAnime4KPageStatus();
+
+  void refreshVisibleImages();
+}
+
+class _Anime4KPageStatus {
+  const _Anime4KPageStatus({
+    required this.totalImages,
+    required this.processedImages,
+    required this.processingImages,
+  });
+
+  final int totalImages;
+  final int processedImages;
+  final int processingImages;
+
+  bool get hasImages => totalImages > 0;
+
+  bool get fullyProcessed => hasImages && processedImages == totalImages;
+
+  bool get isProcessing => processingImages > 0;
 }
