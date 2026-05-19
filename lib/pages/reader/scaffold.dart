@@ -190,25 +190,45 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
         processingImages: 0,
       );
 
-  String get anime4KStatusText {
-    if (!isAnime4KEnabled) {
-      return '超分已关闭';
-    }
+  bool get hasAnime4KResultOnPage => anime4KPageStatus.processedImages > 0;
+
+  bool get canSwitchToOriginal =>
+      _showAnime4KProcessed && hasAnime4KResultOnPage;
+
+  bool get canSwitchToSuperResolution => !_showAnime4KProcessed;
+
+  bool get isAnime4KButtonEnabled =>
+      canSwitchToOriginal || canSwitchToSuperResolution;
+
+  String get anime4KButtonTooltip {
     final status = anime4KPageStatus;
-    final prefix = _showAnime4KProcessed ? '显示超分' : '显示原图';
     if (!status.hasImages) {
-      return '$prefix · 无图片';
+      return '当前页无图片';
     }
-    if (status.fullyProcessed) {
-      return '$prefix · 已超分';
+    if (canSwitchToOriginal) {
+      return '切换到原图';
+    }
+    if (canSwitchToSuperResolution) {
+      return hasAnime4KResultOnPage ? '切换到超分' : '显示超分';
     }
     if (status.isProcessing) {
-      return '$prefix · 处理中';
+      return '超分处理中';
     }
-    if (status.processedImages > 0) {
-      return '$prefix · 部分超分';
+    return '等待超分完成';
+  }
+
+  IconData get anime4KButtonIcon {
+    if (canSwitchToOriginal) {
+      return Icons.image_outlined;
     }
-    return '$prefix · 未超分';
+    return Icons.auto_awesome;
+  }
+
+  void handleAnime4KButtonPressed() {
+    if (!isAnime4KButtonEnabled) {
+      return;
+    }
+    toggleAnime4KDisplay();
   }
 
   @override
@@ -331,14 +351,12 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
               ),
               if (isAnime4KEnabled)
                 Tooltip(
-                  message: _showAnime4KProcessed ? '切换到原图' : '切换到超分',
+                  message: anime4KButtonTooltip,
                   child: IconButton(
-                    icon: Icon(
-                      _showAnime4KProcessed
-                          ? Icons.compare_outlined
-                          : Icons.auto_awesome,
-                    ),
-                    onPressed: toggleAnime4KDisplay,
+                    icon: Icon(anime4KButtonIcon),
+                    onPressed: isAnime4KButtonEnabled
+                        ? handleAnime4KButtonPressed
+                        : null,
                   ),
                 ),
               const SizedBox(width: 8),
@@ -633,19 +651,6 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
                       ),
                       child: Center(child: Text(text)),
                     ).paddingLeft(16),
-                  if (!small && isAnime4KEnabled)
-                    Container(
-                      height: 24,
-                      margin: const EdgeInsets.only(left: 8),
-                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(anime4KStatusText, style: ts.s12),
-                      ),
-                    ),
                   const Spacer(),
                   for (var button in buttons)
                     if (!small)
