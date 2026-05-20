@@ -197,9 +197,6 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
 
   bool get canSwitchToSuperResolution => !_showAnime4KProcessed;
 
-  bool get isAnime4KButtonEnabled =>
-      canSwitchToOriginal || canSwitchToSuperResolution;
-
   String get anime4KButtonTooltip {
     final status = anime4KPageStatus;
     if (!status.hasImages) {
@@ -225,7 +222,9 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
   }
 
   void handleAnime4KButtonPressed() {
-    if (!isAnime4KButtonEnabled) {
+    // Keep the button interactive and focus-stable. Only the action itself is
+    // conditional on whether we already have an Anime4K result to switch to.
+    if (!(canSwitchToOriginal || canSwitchToSuperResolution)) {
       return;
     }
     toggleAnime4KDisplay();
@@ -350,13 +349,16 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
                 ),
               ),
               if (isAnime4KEnabled)
-                Tooltip(
-                  message: anime4KButtonTooltip,
-                  child: IconButton(
-                    icon: Icon(anime4KButtonIcon),
-                    onPressed: isAnime4KButtonEnabled
-                        ? handleAnime4KButtonPressed
-                        : null,
+                Focus(
+                  canRequestFocus: false,
+                  skipTraversal: true,
+                  descendantsAreFocusable: false,
+                  child: Tooltip(
+                    message: anime4KButtonTooltip,
+                    child: IconButton(
+                      icon: Icon(anime4KButtonIcon),
+                      onPressed: handleAnime4KButtonPressed,
+                    ),
                   ),
                 ),
               const SizedBox(width: 8),
