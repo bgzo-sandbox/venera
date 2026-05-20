@@ -112,9 +112,6 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    debugPrint(
-      '[Anime4KProbe] ComicImage.initState image=${widget.image.runtimeType}',
-    );
     WidgetsBinding.instance.addObserver(this);
     _scrollAwareContext = DisposableBuildContext<State<ComicImage>>(this);
     widget.onInit?.call(this);
@@ -134,9 +131,6 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
 
   @override
   void didChangeDependencies() {
-    debugPrint(
-      '[Anime4KProbe] ComicImage.didChangeDependencies image=${widget.image.runtimeType}',
-    );
     _updateInvertColors();
     _resolveImage();
 
@@ -152,12 +146,9 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   }
 
   Future<void> _triggerImageUpscale() async {
-    debugPrint(
-      '[Anime4KProbe] _triggerImageUpscale enter mounted=$mounted image=${widget.image.runtimeType}',
-    );
     if (!mounted || _isUpscaling || _upscaledBytes != null) {
       if (mounted && (_isUpscaling || _upscaledBytes != null)) {
-        Log.warning(
+        Log.info(
           'Anime4K',
           'skip trigger: upscaling=$_isUpscaling hasUpscaledBytes=${_upscaledBytes != null}',
         );
@@ -165,18 +156,13 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       return;
     }
     final enabled = _getAnime4KSetting<bool>('enableAnime4K') ?? false;
-    debugPrint('[Anime4KProbe] effective enableAnime4K=$enabled');
     if (!enabled) {
-      Log.warning(
-        'Anime4K',
-        'skip trigger: effective setting enableAnime4K=false',
-      );
       return;
     }
 
     final source = _getAnime4KSourceProvider(widget.image);
     if (source == null) {
-      Log.warning(
+      Log.info(
         'Anime4K',
         'skip trigger: unsupported image provider ${widget.image.runtimeType}',
       );
@@ -185,20 +171,17 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
 
     final enableNetwork =
         _getAnime4KSetting<bool>('enableAnime4KForNetwork') ?? false;
-    debugPrint(
-      '[Anime4KProbe] effective enableAnime4KForNetwork=$enableNetwork source=${source.runtimeType}',
-    );
     if (source is ReaderImageProvider &&
         !source.imageKey.startsWith('file://') &&
         !enableNetwork) {
-      Log.warning(
+      Log.info(
         'Anime4K',
         'skip trigger: network reader image disabled imageKey=${source.imageKey}',
       );
       return;
     }
 
-    Log.warning(
+    Log.info(
       'Anime4K',
       'trigger start: enabled=$enabled network=$enableNetwork widgetProvider=${widget.image.runtimeType} sourceProvider=${source.runtimeType} cacheKey=${_buildCacheKey(source)}',
     );
@@ -206,14 +189,14 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     final imageBytes = await _loadSourceBytes(source);
     final cacheKey = _buildCacheKey(source);
     if (!mounted || imageBytes == null || cacheKey == null) {
-      Log.warning(
+      Log.info(
         'Anime4K',
         'skip trigger: mounted=$mounted imageBytes=${imageBytes?.length ?? 0} cacheKey=$cacheKey',
       );
       return;
     }
 
-    Log.warning(
+    Log.info(
       'Anime4K',
       'loaded source bytes: cacheKey=$cacheKey bytes=${imageBytes.length}',
     );
@@ -248,7 +231,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     });
     _notifyReaderScaffold();
 
-    Log.warning(
+    Log.info(
       'Anime4K',
       'trigger end: cacheKey=$cacheKey resultBytes=${result?.length ?? 0} applied=${result != null}',
     );
@@ -284,7 +267,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     if (source is ReaderImageProvider) {
       return source.load(StreamController<ImageChunkEvent>(), () {});
     }
-    Log.warning(
+    Log.info(
       'Anime4K',
       'unsupported source provider for bytes ${source.runtimeType}',
     );
@@ -308,7 +291,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   void didUpdateWidget(ComicImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.image != oldWidget.image) {
-      Log.warning(
+      Log.info(
         'Anime4K',
         'image provider changed: old=${oldWidget.image.runtimeType} new=${widget.image.runtimeType}',
       );
