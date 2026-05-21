@@ -14,6 +14,7 @@ import 'package:venera/network/cookie_jar.dart';
 import 'package:venera/pages/comic_source_page.dart';
 import 'package:venera/pages/follow_updates_page.dart';
 import 'package:venera/pages/settings/settings_page.dart';
+import 'package:venera/super_resolution/super_resolution_service.dart';
 import 'package:venera/utils/app_links.dart';
 import 'package:venera/utils/auth_storage.dart';
 import 'package:venera/utils/handle_text_share.dart';
@@ -68,8 +69,8 @@ Future<void> init() async {
   if (App.isMobile) {
     handleLinks();
   }
-  // 初始化 Anime4K 服务
-  await Anime4KService.instance.init();
+  // 初始化超分服务
+  await SuperResolutionService.instance.init();
   FlutterError.onError = (details) {
     Log.error("Unhandled Exception", "${details.exception}\n${details.stack}");
   };
