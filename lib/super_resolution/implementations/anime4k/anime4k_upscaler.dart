@@ -2,25 +2,43 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'package:venera/foundation/log.dart';
 
-/// Anime4K 超分辨率算法实现
-/// 基于 Anime4K v1.0 的 "Push Pixels" 算法
+const double _kAnime4KDefaultPushStrength = 0.31;
+const double _kAnime4KDefaultPushGradStrength = 1.0;
+const double _kAnime4KDefaultScaleFactor = 2.0;
+const int _kAnime4KStrengthUnit = 255;
+const int _kAnime4KMaxStrength = 0xFFFF;
+
+/// Low-level Anime4K upscaler implementation.
+///
+/// This class contains the pixel-processing algorithm itself. The surrounding
+/// module is responsible for cache, scheduling, logging and algorithm routing;
+/// this class should stay focused on deterministic image transformation.
+///
+/// Future extensions should prefer adding new processors beside Anime4K instead
+/// of growing cross-algorithm branching logic into this file.
 class Anime4KUpscaler {
   final double pushStrength;
   final double pushGradStrength;
   final double scaleFactor;
 
   Anime4KUpscaler({
-    this.pushStrength = 0.31,
-    this.pushGradStrength = 1.0,
-    this.scaleFactor = 2.0,
+    this.pushStrength = _kAnime4KDefaultPushStrength,
+    this.pushGradStrength = _kAnime4KDefaultPushGradStrength,
+    this.scaleFactor = _kAnime4KDefaultScaleFactor,
   });
 
+  /// Legacy helper that runs the Anime4K algorithm in a background isolate.
+  ///
+  /// The newer module path normally goes through [Anime4KProcessor], but this
+  /// helper is still useful for internal reuse and keeps the isolate contract
+  /// close to the algorithm implementation.
   static Future<Uint8List?> processInIsolate(Anime4KParams params) async {
     try {
       return await compute(_processImage, params);
     } catch (e) {
-      debugPrint('Anime4K processing error: $e');
+      Log.error('Anime4K', 'processing error: $e');
       return null;
     }
   }
@@ -41,7 +59,12 @@ class Anime4KUpscaler {
     }
   }
 
+  /// Synchronous core algorithm working on a decoded image.
+  ///
+  /// The method is intentionally split into named stages so later maintenance
+  /// can tweak one step without losing the overall processing flow.
   img.Image upscale(img.Image source) {
+    // Stage 1: resize the source image to the target working resolution.
     final int newWidth = (source.width * scaleFactor).round();
     final int newHeight = (source.height * scaleFactor).round();
     final img.Image upscaled = img.copyResize(
@@ -69,12 +92,16 @@ class Anime4KUpscaler {
         );
       }
     }
+    // Stage 2: compute the luminance buffer used by later refinement steps.
     _computeLuminance(colorData, lumData, size);
-    final int unblurStrength = (pushStrength * 255).round().clamp(0, 0xFFFF);
+    final int unblurStrength = (pushStrength * _kAnime4KStrengthUnit)
+        .round()
+        .clamp(0, _kAnime4KMaxStrength);
     int remaining = unblurStrength;
     bool forward = true;
+    // Stage 3: iteratively apply the unblur pass to sharpen line structure.
     while (remaining > 0) {
-      final int current = remaining.clamp(0, 255);
+      final int current = remaining.clamp(0, _kAnime4KStrengthUnit);
       if (forward) {
         _unblur(
           colorData,
@@ -103,6 +130,7 @@ class Anime4KUpscaler {
       colorData.setAll(0, tempColorData);
       lumData.setAll(0, tempLumData);
     }
+    // Stage 4: compute gradients and run the gradient refinement pass.
     _computeGradient(
       colorData,
       lumData,
@@ -113,14 +141,13 @@ class Anime4KUpscaler {
     );
     colorData.setAll(0, tempColorData);
     lumData.setAll(0, tempLumData);
-    final int refineStrength = (pushGradStrength * 255).round().clamp(
-      0,
-      0xFFFF,
-    );
+    final int refineStrength = (pushGradStrength * _kAnime4KStrengthUnit)
+        .round()
+        .clamp(0, _kAnime4KMaxStrength);
     remaining = refineStrength;
     forward = true;
     while (remaining > 0) {
-      final int current = remaining.clamp(0, 255);
+      final int current = remaining.clamp(0, _kAnime4KStrengthUnit);
       if (forward) {
         _gradientRefine(
           colorData,
@@ -189,7 +216,7 @@ class Anime4KUpscaler {
     int height,
     int strength,
   ) {
-    strength = strength.clamp(0, 255);
+    strength = strength.clamp(0, _kAnime4KStrengthUnit);
     for (int y = 0; y < height; y++) {
       final int yn = y == 0 ? 0 : -width;
       final int yp = y == height - 1 ? 0 : width;
@@ -396,7 +423,7 @@ class Anime4KUpscaler {
     int height,
     int strength,
   ) {
-    strength = strength.clamp(0, 255);
+    strength = strength.clamp(0, _kAnime4KStrengthUnit);
     for (int y = 0; y < height; y++) {
       final int yn = y == 0 ? 0 : -width;
       final int yp = y == height - 1 ? 0 : width;
@@ -616,8 +643,8 @@ class Anime4KParams {
   final double scaleFactor;
   const Anime4KParams({
     required this.imageBytes,
-    this.pushStrength = 0.31,
-    this.pushGradStrength = 1.0,
-    this.scaleFactor = 2.0,
+    this.pushStrength = _kAnime4KDefaultPushStrength,
+    this.pushGradStrength = _kAnime4KDefaultPushGradStrength,
+    this.scaleFactor = _kAnime4KDefaultScaleFactor,
   });
 }

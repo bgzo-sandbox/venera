@@ -213,12 +213,14 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     final pushGradStrength =
         (_getAnime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ?? 1.0;
 
-    final result = await Anime4KService.instance.processImage(
-      imageBytes: imageBytes,
-      cacheKey: cacheKey,
-      scaleFactor: scaleFactor,
-      pushStrength: pushStrength,
-      pushGradStrength: pushGradStrength,
+    final result = await SuperResolutionService.instance.processImage(
+      SuperResolutionRequest(
+        cacheKey: cacheKey,
+        imageBytes: imageBytes,
+        scaleFactor: scaleFactor,
+        pushStrength: pushStrength,
+        pushGradStrength: pushGradStrength,
+      ),
     );
 
     if (!mounted) {

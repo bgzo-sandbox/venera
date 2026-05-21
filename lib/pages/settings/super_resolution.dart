@@ -1,13 +1,14 @@
 part of 'settings_page.dart';
 
-class Anime4KSettings extends StatefulWidget {
-  const Anime4KSettings({super.key});
+class SuperResolutionSettings extends StatefulWidget {
+  const SuperResolutionSettings({super.key});
 
   @override
-  State<Anime4KSettings> createState() => _Anime4KSettingsState();
+  State<SuperResolutionSettings> createState() =>
+      _SuperResolutionSettingsState();
 }
 
-class _Anime4KSettingsState extends State<Anime4KSettings> {
+class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
   @override
   Widget build(BuildContext context) {
     return SmoothCustomScrollView(
