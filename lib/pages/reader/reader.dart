@@ -34,6 +34,8 @@ import 'package:venera/foundation/log.dart';
 import 'package:venera/foundation/res.dart';
 import 'package:venera/network/images.dart';
 import 'package:venera/pages/settings/settings_page.dart';
+import 'package:venera/super_resolution/models/super_resolution_request.dart';
+import 'package:venera/super_resolution/super_resolution_service.dart';
 import 'package:venera/utils/clipboard_image.dart';
 import 'package:venera/utils/ext.dart';
 import 'package:venera/utils/file_type.dart';
@@ -870,4 +872,26 @@ abstract interface class _ImageViewController {
   Future<Uint8List?> getImageByOffset(Offset offset);
 
   String? getImageKeyByOffset(Offset offset);
+
+  _Anime4KPageStatus getAnime4KPageStatus();
+
+  void refreshVisibleImages();
+}
+
+class _Anime4KPageStatus {
+  const _Anime4KPageStatus({
+    required this.totalImages,
+    required this.processedImages,
+    required this.processingImages,
+  });
+
+  final int totalImages;
+  final int processedImages;
+  final int processingImages;
+
+  bool get hasImages => totalImages > 0;
+
+  bool get fullyProcessed => hasImages && processedImages == totalImages;
+
+  bool get isProcessing => processingImages > 0;
 }
