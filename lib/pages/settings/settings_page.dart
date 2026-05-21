@@ -34,7 +34,7 @@ part 'app.dart';
 part 'auth_pin_setting.dart';
 part 'about.dart';
 part 'network.dart';
-part 'anime4k.dart';
+part 'super_resolution.dart';
 part 'debug.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -251,7 +251,7 @@ class _SettingsPageState extends State<SettingsPage> {
       3 => const LocalFavoritesSettings(),
       4 => const AppSettings(),
       5 => const NetworkSettings(),
-      6 => const Anime4KSettings(),
+      6 => const SuperResolutionSettings(),
       7 => const AboutSettings(),
       8 => const DebugPage(),
       _ => throw UnimplementedError(),
@@ -277,7 +277,7 @@ class _SettingsDetailPage extends StatelessWidget {
       3 => const LocalFavoritesSettings(),
       4 => const AppSettings(),
       5 => const NetworkSettings(),
-      6 => const Anime4KSettings(),
+      6 => const SuperResolutionSettings(),
       7 => const AboutSettings(),
       8 => const DebugPage(),
       _ => throw UnimplementedError(),
