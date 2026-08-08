@@ -221,10 +221,6 @@ class _FollowUpdatesPageState extends AutomaticGlobalState<FollowUpdatesPage> {
               "Automatic update checking enabled.".tl,
               style: ts.s14,
             ).paddingHorizontal(16),
-            Text(
-              "The app will check for updates at most once a day.".tl,
-              style: ts.s14,
-            ).paddingHorizontal(16),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
