@@ -108,6 +108,39 @@ tags: [feature, bug, updates, settings]
 - **Linked Code**: `lib/pages/follow_updates_page.dart`、`lib/foundation/favorites.dart:markAsRead`
 - **Verification Result**: `fvm flutter test` 全量通过（+118）；#9 手动复现需运行应用确认。
 
+#### TASK-011 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 新增 "Updates" 设置分类页。
+- **Logic Changes**:
+  - **Added**: `lib/pages/settings/updates.dart`，`part of 'settings_page.dart'`，含 `UpdatesSettings` 页面与三项设置/一个跳转入口。
+- **Linked Code**: `lib/pages/settings/updates.dart`
+- **Verification Result**: analyze 通过。
+
+#### TASK-012 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 将 "Updates" 分类接入设置路由。
+- **Logic Changes**:
+  - **Modified**: `settings_page.dart` 增加 import、`part 'updates.dart'`、categories/icons 插入 "Updates"/`Icons.update`，两个 switch 索引整体 +1 并在 0 后插入 `1 => const UpdatesSettings()`。
+- **Linked Code**: `lib/pages/settings/settings_page.dart`
+- **Verification Result**: `rg "Updates"` 命中 categories 与两个 switch，analyze 通过；运行态进入"设置 → 更新"待应用确认。
+
+#### TASK-013 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 为 12 个新 UI 字符串新增 zh_CN/zh_TW 翻译。
+- **Logic Changes**:
+  - **Added**: `assets/translation.json` 中 zh_CN 与 zh_TW 各新增 12 键；en_US 无独立分组，回退即英文 key 本身。
+  - **Modified**: 无。
+- **Linked Code**: `assets/translation.json`
+- **Verification Result**: JSON 合法，全部新键在 zh_CN/zh_TW 各命中一次。
+
+#### TASK-014 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 运行全量验证门。
+- **Logic Changes**:
+  - **Modified**: 无（dart format 仅规范自身 2 文件缩进）。
+- **Linked Code**: 全库
+- **Verification Result**: format 无 diff（build/ 产物已 gitignore）、analyze 无问题、test 全量通过（+118），三命令退出码 0。
+
 ## 2. Implementation Steps
 
 ### Implementation Phase 1 — 设置项数据模型与启动门控
@@ -147,10 +180,10 @@ tags: [feature, bug, updates, settings]
 
 | Task | Status | Description | Verification Steps | Date |
 | ---- | ------ | ----------- | ------------------- | ---- |
-| TASK-011 | Pending | 新建 `lib/pages/settings/updates.dart`，文件首行 `part of 'settings_page.dart';`。定义 `class UpdatesSettings extends StatefulWidget` / `_UpdatesSettingsState`，`build` 返回 `SmoothCustomScrollView(slivers:[ SliverAppbar(title: Text("Updates".tl)), _SwitchSetting(title: "Check for updates on app start".tl, settingKey: "comicUpdateCheckOnStart"), SelectSetting(title: "Update check interval".tl, settingKey: "comicUpdateCheckInterval", help: "Minimum time between checks for the same comic.".tl, optionTranslation: {"1":"1 hour".tl,"6":"6 hours".tl,"12":"12 hours".tl,"24":"1 day".tl,"48":"2 days".tl,"72":"3 days".tl}), _SwitchSetting(title: "Skip comics already marked as updated".tl, subtitle: "Saves bandwidth by not re-checking comics that already have a pending update.".tl, settingKey: "skipCheckIfHasNewUpdate"), _CallbackSetting(title: "Configure follow updates".tl, actionTitle: "Open".tl, callback: () => context.to(() => const FollowUpdatesPage())) ])`，全部 `.toSliver()`。 | 文件存在且 `fvm flutter analyze --fatal-infos` 通过。 | |
-| TASK-012 | Pending | 在 `lib/pages/settings/settings_page.dart`：①顶部新增 `import 'package:venera/pages/follow_updates_page.dart';`；②`part 'updates.dart';`（置于现有 part 列表中）；③`categories` 在 `"Explore"` 后插入 `"Updates"`；④`icons` 在对应位置插入 `Icons.update`；⑤`_buildSettingsContent` 与 `_SettingsDetailPage._buildPage` 两个 switch 的 `0 => const ExploreSettings(),` 之后插入 `1 => const UpdatesSettings(),`，并把其后所有数字索引 +1（Reading→2, Appearance→3, Local Favorites→4, APP→5, Network→6, 超分→7, About→8, Debug→9）。 | `rg "Updates" lib/pages/settings/settings_page.dart` 命中 categories 与两个 switch；运行应用进入"设置 → 更新"可见新页。 | |
-| TASK-013 | Pending | 在 `assets/translation.json` 的 `en_US` / `zh_CN` / `zh_TW` 三组分别新增键：`"Check for updates on app start"`、`"Update check interval"`、`"Minimum time between checks for the same comic."`、`"Skip comics already marked as updated"`、`"Saves bandwidth by not re-checking comics that already have a pending update."`、`"1 hour"`、`"6 hours"`、`"12 hours"`、`"1 day"`、`"2 days"`、`"3 days"`、`"Configure follow updates"`。`"Updates"` 与 `"Open"` 已存在则复用，缺失才补。en_US 值同 key；zh_CN/zh_TW 给出对应中文。 | `rg '"Check for updates on app start"' assets/translation.json` 在三语下各命中。 | |
-| TASK-014 | Pending | 验证门（全量）：`fvm dart format --set-exit-if-changed .` && `fvm flutter analyze --fatal-infos` && `fvm flutter test`。 | 三命令退出码均为 0。 | |
+| TASK-011 | Completed | 新建 `lib/pages/settings/updates.dart`，文件首行 `part of 'settings_page.dart';`。定义 `class UpdatesSettings extends StatefulWidget` / `_UpdatesSettingsState`，`build` 返回 `SmoothCustomScrollView(slivers:[ SliverAppbar(title: Text("Updates".tl)), _SwitchSetting(title: "Check for updates on app start".tl, settingKey: "comicUpdateCheckOnStart"), SelectSetting(title: "Update check interval".tl, settingKey: "comicUpdateCheckInterval", help: "Minimum time between checks for the same comic.".tl, optionTranslation: {"1":"1 hour".tl,"6":"6 hours".tl,"12":"12 hours".tl,"24":"1 day".tl,"48":"2 days".tl,"72":"3 days".tl}), _SwitchSetting(title: "Skip comics already marked as updated".tl, subtitle: "Saves bandwidth by not re-checking comics that already have a pending update.".tl, settingKey: "skipCheckIfHasNewUpdate"), _CallbackSetting(title: "Configure follow updates".tl, actionTitle: "Open".tl, callback: () => context.to(() => const FollowUpdatesPage())) ])`，全部 `.toSliver()`。 | 文件存在且 `fvm flutter analyze --fatal-infos` 通过。 | 2026-08-08 |
+| TASK-012 | Completed | 在 `lib/pages/settings/settings_page.dart`：①顶部新增 `import 'package:venera/pages/follow_updates_page.dart';`；②`part 'updates.dart';`（置于现有 part 列表中）；③`categories` 在 `"Explore"` 后插入 `"Updates"`；④`icons` 在对应位置插入 `Icons.update`；⑤`_buildSettingsContent` 与 `_SettingsDetailPage._buildPage` 两个 switch 的 `0 => const ExploreSettings(),` 之后插入 `1 => const UpdatesSettings(),`，并把其后所有数字索引 +1（Reading→2, Appearance→3, Local Favorites→4, APP→5, Network→6, 超分→7, About→8, Debug→9）。 | `rg "Updates" lib/pages/settings/settings_page.dart` 命中 categories 与两个 switch；运行应用进入"设置 → 更新"可见新页。 | 2026-08-08 |
+| TASK-013 | Completed | 在 `assets/translation.json` 的 `en_US` / `zh_CN` / `zh_TW` 三组分别新增键：`"Check for updates on app start"`、`"Update check interval"`、`"Minimum time between checks for the same comic."`、`"Skip comics already marked as updated"`、`"Saves bandwidth by not re-checking comics that already have a pending update."`、`"1 hour"`、`"6 hours"`、`"12 hours"`、`"1 day"`、`"2 days"`、`"3 days"`、`"Configure follow updates"`。`"Updates"` 与 `"Open"` 已存在则复用，缺失才补。en_US 值同 key；zh_CN/zh_TW 给出对应中文。 | `rg '"Check for updates on app start"' assets/translation.json` 在三语下各命中。 | 2026-08-08 |
+| TASK-014 | Completed | 验证门（全量）：`fvm dart format --set-exit-if-changed .` && `fvm flutter analyze --fatal-infos` && `fvm flutter test`。 | 三命令退出码均为 0。 | 2026-08-08 |
 
 ## 3. Alternatives
 
