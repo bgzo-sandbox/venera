@@ -22,7 +22,6 @@ import 'package:venera/utils/opencc.dart';
 import 'package:venera/utils/tags_translation.dart';
 import 'package:venera/utils/translations.dart';
 import 'foundation/appdata.dart';
-import 'package:venera/utils/anime4k/anime4k_service.dart';
 
 extension _FutureInit<T> on Future<T> {
   /// Prevent unhandled exception
