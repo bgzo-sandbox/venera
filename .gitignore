@@ -52,3 +52,15 @@ add_translation.py
 .claude/settings.local.json
 docs/superpowers/
 .worktrees/
+
+# FVM Version Cache
+.fvm/
+.fvmrc
+Podfile.lock
+
+# Others repo
+fork-repo/
+docs/implementation-plans/*.md
+.github/prompts/*.md
+android/keystore.jks.base64.txt
+
