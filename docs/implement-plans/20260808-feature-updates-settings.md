@@ -83,6 +83,31 @@ tags: [feature, bug, updates, settings]
 - **Linked Code**: `test/foundation/follow_updates_test.dart`
 - **Verification Result**: 测试通过（+2）。
 
+#### TASK-008 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: `_FollowUpdatesWidgetState` 监听 `LocalFavoritesManager`，使首页卡片随变更自动刷新。
+- **Logic Changes**:
+  - **Modified**: `initState` 在 `getCount()` 后新增 `addListener(updateCount)`；重写 `dispose` 调 `removeListener(updateCount)` 后 `super.dispose()`。
+- **Linked Code**: `lib/pages/follow_updates_page.dart:52-59`
+- **Verification Result**: `rg` 各 1 命中，analyze 通过。
+
+#### TASK-009 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: `_FollowUpdatesPageState` 监听 `LocalFavoritesManager`，使更新页列表随变更自动刷新。
+- **Logic Changes**:
+  - **Modified**: `initState` 末尾新增 `addListener(updateComics)`；重写 `dispose` 调 `removeListener(updateComics)` 后 `super.dispose()`。
+- **Linked Code**: `lib/pages/follow_updates_page.dart:134-143`
+- **Verification Result**: `rg` 命中，analyze 通过。
+
+#### TASK-010 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 集成验证阅读后更新页列表刷新。
+- **Logic Changes**:
+  - **Added**: 借助 listener 使 `markAsRead` 的 `notifyChanges()` 直接触发 `updateComics()`/`updateCount()`。
+  - **Modified**: 无。
+- **Linked Code**: `lib/pages/follow_updates_page.dart`、`lib/foundation/favorites.dart:markAsRead`
+- **Verification Result**: `fvm flutter test` 全量通过（+118）；#9 手动复现需运行应用确认。
+
 ## 2. Implementation Steps
 
 ### Implementation Phase 1 — 设置项数据模型与启动门控
@@ -112,9 +137,9 @@ tags: [feature, bug, updates, settings]
 
 | Task | Status | Description | Verification Steps | Date |
 | ---- | ------ | ----------- | ------------------- | ---- |
-| TASK-008 | Pending | 在 `lib/pages/follow_updates_page.dart` 的 `_FollowUpdatesWidgetState`：`initState` 内 `getCount()` 之后加 `LocalFavoritesManager().addListener(updateCount);`；重写 `dispose` 调用 `LocalFavoritesManager().removeListener(updateCount);` 后 `super.dispose();`。 | `rg "addListener\(updateCount\)\|removeListener\(updateCount\)" lib/pages/follow_updates_page.dart` 各 1 命中。 | |
-| TASK-009 | Pending | 在 `_FollowUpdatesPageState`：`initState` 末尾加 `LocalFavoritesManager().addListener(updateComics);`；重写 `dispose` 调用 `LocalFavoritesManager().removeListener(updateComics);` 后 `super.dispose();`。 | 同上 `updateComics` 版本命中。 | |
-| TASK-010 | Pending | 人工/集成验证：配置 `followUpdatesFolder`，复现 #9 场景——在更新列表点进漫画读完返回，列表中该漫画立即消失（之前残留）。 | 手动复现：阅读返回后更新页列表不含该漫画；`fvm flutter test` 通过。 | |
+| TASK-008 | Completed | 在 `lib/pages/follow_updates_page.dart` 的 `_FollowUpdatesWidgetState`：`initState` 内 `getCount()` 之后加 `LocalFavoritesManager().addListener(updateCount);`；重写 `dispose` 调用 `LocalFavoritesManager().removeListener(updateCount);` 后 `super.dispose();`。 | `rg "addListener\(updateCount\)\|removeListener\(updateCount\)" lib/pages/follow_updates_page.dart` 各 1 命中。 | 2026-08-08 |
+| TASK-009 | Completed | 在 `_FollowUpdatesPageState`：`initState` 末尾加 `LocalFavoritesManager().addListener(updateComics);`；重写 `dispose` 调用 `LocalFavoritesManager().removeListener(updateComics);` 后 `super.dispose();`。 | 同上 `updateComics` 版本命中。 | 2026-08-08 |
+| TASK-010 | Completed | 人工/集成验证：配置 `followUpdatesFolder`，复现 #9 场景——在更新列表点进漫画读完返回，列表中该漫画立即消失（之前残留）。 | 手动复现：阅读返回后更新页列表不含该漫画；`fvm flutter test` 通过。 | 2026-08-08 |
 
 ### Implementation Phase 4 — 新设置页 UI 与入口接线
 

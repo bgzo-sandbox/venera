@@ -50,6 +50,13 @@ class _FollowUpdatesWidgetState
   void initState() {
     super.initState();
     getCount();
+    LocalFavoritesManager().addListener(updateCount);
+  }
+
+  @override
+  void dispose() {
+    LocalFavoritesManager().removeListener(updateCount);
+    super.dispose();
   }
 
   @override
@@ -134,6 +141,13 @@ class _FollowUpdatesPageState extends AutomaticGlobalState<FollowUpdatesPage> {
       sortComics();
       updatedComics = allComics.where((c) => c.hasNewUpdate).toList();
     }
+    LocalFavoritesManager().addListener(updateComics);
+  }
+
+  @override
+  void dispose() {
+    LocalFavoritesManager().removeListener(updateComics);
+    super.dispose();
   }
 
   @override
