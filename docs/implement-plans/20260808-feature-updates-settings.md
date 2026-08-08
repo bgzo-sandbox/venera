@@ -49,6 +49,40 @@ tags: [feature, bug, updates, settings]
 - **Linked Code**: `lib/foundation/appdata.dart`、`lib/pages/follow_updates_page.dart`
 - **Verification Result**: `dart format` 0 changed，`analyze --fatal-infos` 无问题，均退出码 0。
 
+#### TASK-004 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 为 `follow_updates.dart` 引入 `appdata` 依赖。
+- **Logic Changes**:
+  - **Added**: `import 'package:venera/foundation/appdata.dart';`。
+  - **Modified**: 无。
+- **Linked Code**: `lib/foundation/follow_updates.dart:3`
+- **Verification Result**: `rg` 命中，analyze 通过。
+
+#### TASK-005 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 用可配小时间隔替换硬编码 1 天，并新增"跳过已标记更新"分支。
+- **Logic Changes**:
+  - **Modified**: `updateFolderBase` 中时间节流从 `inDays < 1` 改为 `inHours < (int.tryParse(...) ?? 24)`。
+  - **Added**: 循环内新增 `skipCheckIfHasNewUpdate && comic.hasNewUpdate` 跳过分支，独立于 `ignoreCheckTime`，手动 Check Now 同样生效。
+- **Linked Code**: `lib/foundation/follow_updates.dart:110-129`
+- **Verification Result**: 两处跳过分支并存，analyze 通过。
+
+#### TASK-006 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 新增跳过单测：`skipCheckIfHasNewUpdate` 为 true 时 mock `loadComicInfo` 不被调用，false 时被调用。
+- **Logic Changes**:
+  - **Added**: `test/foundation/follow_updates_test.dart` 中构造 mock `ComicSource` 与 `has_new_update=1` 漫画，断言 `loadComicInfo` 调用次数。
+- **Linked Code**: `test/foundation/follow_updates_test.dart`
+- **Verification Result**: 测试通过（+2）。
+
+#### TASK-007 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 新增间隔单测：2 小时前检查过的漫画在 24h 间隔下跳过、在 1h 间隔下重查。
+- **Logic Changes**:
+  - **Added**: 直接写库设置 `last_check_time` 为 2 小时前，分别用 `'24'`/`'1'` 间隔断言请求与否。
+- **Linked Code**: `test/foundation/follow_updates_test.dart`
+- **Verification Result**: 测试通过（+2）。
+
 ## 2. Implementation Steps
 
 ### Implementation Phase 1 — 设置项数据模型与启动门控
@@ -67,10 +101,10 @@ tags: [feature, bug, updates, settings]
 
 | Task | Status | Description | Verification Steps | Date |
 | ---- | ------ | ----------- | ------------------- | ---- |
-| TASK-004 | Pending | 在 `lib/foundation/follow_updates.dart` 顶部新增 `import 'package:venera/foundation/appdata.dart';`。 | `rg "import 'package:venera/foundation/appdata.dart'" lib/foundation/follow_updates.dart` 命中。 | |
-| TASK-005 | Pending | 在 `updateFolderBase`（约 110-121 行）改写逐漫画过滤：保留既有 `ignoreCheckTime` 时间节流分支，但把 `inDays < 1` 改为 `inHours < (int.tryParse(appdata.settings['comicUpdateCheckInterval']?.toString() ?? '24') ?? 24)`；并在该循环内新增 `if (appdata.settings['skipCheckIfHasNewUpdate'] == true && comic.hasNewUpdate) { current++; stream.add(UpdateProgress(total, current, errors, updated)); continue; }`，使该跳过逻辑与 `ignoreCheckTime` 无关（即手动 Check Now 也生效）。total 仍由 `comicsToUpdate.length` 重算。 | 阅读源码确认两处跳过分支并存；`fvm flutter analyze --fatal-infos` 通过。 | |
-| TASK-006 | Pending | 单测：在 `test/foundation/favorites_follow_updates_test.dart` 增补（或新文件 `follow_updates_test.dart`）：构造一个 `has_new_update=true` 的 `FavoriteItemWithUpdateInfo`，设置 `skipCheckIfHasNewUpdate=true`，调用 `updateFolder(folder, true)`，断言不发生源站请求（mock `loadComicInfo` 不被调用）；再设 `false`，断言发生请求。 | `fvm flutter test test/foundation/favorites_follow_updates_test.dart` 通过（或新文件测试通过）。 | |
-| TASK-007 | Pending | 单测：构造 `lastCheckTime` 为 2 小时前的漫画，设置 `comicUpdateCheckInterval='24'`，`updateFolder(folder, false)` 断言跳过；改为 `'1'`，断言请求发生。 | 同上测试命令通过。 | |
+| TASK-004 | Completed | 在 `lib/foundation/follow_updates.dart` 顶部新增 `import 'package:venera/foundation/appdata.dart';`。 | `rg "import 'package:venera/foundation/appdata.dart'" lib/foundation/follow_updates.dart` 命中。 | 2026-08-08 |
+| TASK-005 | Completed | 在 `updateFolderBase`（约 110-121 行）改写逐漫画过滤：保留既有 `ignoreCheckTime` 时间节流分支，但把 `inDays < 1` 改为 `inHours < (int.tryParse(appdata.settings['comicUpdateCheckInterval']?.toString() ?? '24') ?? 24)`；并在该循环内新增 `if (appdata.settings['skipCheckIfHasNewUpdate'] == true && comic.hasNewUpdate) { current++; stream.add(UpdateProgress(total, current, errors, updated)); continue; }`，使该跳过逻辑与 `ignoreCheckTime` 无关（即手动 Check Now 也生效）。total 仍由 `comicsToUpdate.length` 重算。 | 阅读源码确认两处跳过分支并存；`fvm flutter analyze --fatal-infos` 通过。 | 2026-08-08 |
+| TASK-006 | Completed | 单测：在 `test/foundation/favorites_follow_updates_test.dart` 增补（或新文件 `follow_updates_test.dart`）：构造一个 `has_new_update=true` 的 `FavoriteItemWithUpdateInfo`，设置 `skipCheckIfHasNewUpdate=true`，调用 `updateFolder(folder, true)`，断言不发生源站请求（mock `loadComicInfo` 不被调用）；再设 `false`，断言发生请求。 | `fvm flutter test test/foundation/favorites_follow_updates_test.dart` 通过（或新文件测试通过）。 | 2026-08-08 |
+| TASK-007 | Completed | 单测：构造 `lastCheckTime` 为 2 小时前的漫画，设置 `comicUpdateCheckInterval='24'`，`updateFolder(folder, false)` 断言跳过；改为 `'1'`，断言请求发生。 | 同上测试命令通过。 | 2026-08-08 |
 
 ### Implementation Phase 3 — 修复阅读后更新页 UI 不刷新（#5 / #9）
 
