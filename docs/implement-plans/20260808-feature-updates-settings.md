@@ -33,6 +33,22 @@ tags: [feature, bug, updates, settings]
 - **Linked Code**: `lib/foundation/appdata.dart:248-250`
 - **Verification Result**: `rg` 命中 3 行，`fvm flutter analyze --fatal-infos` 无问题。
 
+#### TASK-002 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 启动时立即执行的那次 `_check()` 受 `comicUpdateCheckOnStart` 门控。
+- **Logic Changes**:
+  - **Modified**: `initChecker()` 将初始 `_check()` 包裹在 `if (appdata.settings['comicUpdateCheckOnStart'] == true)` 中；`DataSync().addListener` 与 `Timer.periodic` 保持原样。
+- **Linked Code**: `lib/pages/follow_updates_page.dart:560-562`
+- **Verification Result**: 代码评审确认门控不影响定时器与 listener；手动改默认值验证（无/有立即检查日志）待应用运行确认，逻辑正确。
+
+#### TASK-003 Execution Record
+- **Status**: Completed (2026-08-08)
+- **Change Summary**: 对 TASK-001/002 改动运行验证门。
+- **Logic Changes**:
+  - **Modified**: 无。
+- **Linked Code**: `lib/foundation/appdata.dart`、`lib/pages/follow_updates_page.dart`
+- **Verification Result**: `dart format` 0 changed，`analyze --fatal-infos` 无问题，均退出码 0。
+
 ## 2. Implementation Steps
 
 ### Implementation Phase 1 — 设置项数据模型与启动门控
@@ -42,8 +58,8 @@ tags: [feature, bug, updates, settings]
 | Task | Status | Description | Verification Steps | Date |
 | ---- | ------ | ----------- | ------------------- | ---- |
 | TASK-001 | Completed | 在 `lib/foundation/appdata.dart` 默认 settings Map（`'checkUpdateOnStart': false` 之后）新增：`'comicUpdateCheckOnStart': true`（注释标明"漫画更新，区别于 APP 版本的 checkUpdateOnStart"）、`'comicUpdateCheckInterval': '24'`（注释：1/6/12/24/48/72 小时，字符串）、`'skipCheckIfHasNewUpdate': true`。 | `rg "comicUpdateCheckOnStart\|comicUpdateCheckInterval\|skipCheckIfHasNewUpdate" lib/foundation/appdata.dart` 命中 3 行；`fvm flutter analyze --fatal-infos` 无错。 | 2026-08-08 |
-| TASK-002 | Pending | 在 `lib/pages/follow_updates_page.dart` 的 `FollowUpdatesService.initChecker()`（约 557-566 行）将初始 `_check()` 包一层 `if (appdata.settings['comicUpdateCheckOnStart'] == true) { _check(); }`；`DataSync().addListener(...)` 与 `Timer.periodic(...)` 保持不变。 | 临时把默认值改 `false` 跑一次：启动后无立即检查日志；改回 `true`：有检查日志。10 分钟定时器仍在运行。 | |
-| TASK-003 | Pending | 验证门：`fvm dart format --set-exit-if-changed lib/foundation/appdata.dart lib/pages/follow_updates_page.dart` 与 `fvm flutter analyze --fatal-infos` 通过。 | 上一条命令退出码 0。 | |
+| TASK-002 | Completed | 在 `lib/pages/follow_updates_page.dart` 的 `FollowUpdatesService.initChecker()`（约 557-566 行）将初始 `_check()` 包一层 `if (appdata.settings['comicUpdateCheckOnStart'] == true) { _check(); }`；`DataSync().addListener(...)` 与 `Timer.periodic(...)` 保持不变。 | 临时把默认值改 `false` 跑一次：启动后无立即检查日志；改回 `true`：有检查日志。10 分钟定时器仍在运行。 | 2026-08-08 |
+| TASK-003 | Completed | 验证门：`fvm dart format --set-exit-if-changed lib/foundation/appdata.dart lib/pages/follow_updates_page.dart` 与 `fvm flutter analyze --fatal-infos` 通过。 | 上一条命令退出码 0。 | 2026-08-08 |
 
 ### Implementation Phase 2 — 可配更新间隔 + 跳过已更新
 

@@ -557,7 +557,9 @@ abstract class FollowUpdatesService {
   static void initChecker() {
     if (_isInitialized) return;
     _isInitialized = true;
-    _check();
+    if (appdata.settings['comicUpdateCheckOnStart'] == true) {
+      _check();
+    }
     DataSync().addListener(updateFollowUpdatesUI);
     // A short interval will not affect the performance since every comic has a check time.
     Timer.periodic(const Duration(minutes: 10), (timer) {
