@@ -2,8 +2,8 @@
 goal: 新增"更新"设置页并改造漫画更新检查（启动开关 / 可配间隔 / 跳过已更新 / 修复阅读后状态不刷新）
 version: 1.0
 created: 2026-08-08
-modified: 2026-08-08
-status: 'In Progress'
+modified: 2026-08-09
+status: 'Completed'
 tags: [feature, bug, updates, settings]
 ---
 
