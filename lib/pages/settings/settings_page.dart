@@ -16,6 +16,7 @@ import 'package:venera/foundation/js_engine.dart';
 import 'package:venera/foundation/local.dart';
 import 'package:venera/foundation/log.dart';
 import 'package:venera/network/app_dio.dart';
+import 'package:venera/pages/follow_updates_page.dart';
 import 'package:venera/utils/auth_storage.dart';
 import 'package:venera/utils/data.dart';
 import 'package:venera/utils/data_sync.dart';
@@ -30,6 +31,7 @@ part 'explore_settings.dart';
 part 'setting_components.dart';
 part 'appearance.dart';
 part 'local_favorites.dart';
+part 'updates.dart';
 part 'app.dart';
 part 'auth_pin_setting.dart';
 part 'about.dart';
@@ -54,6 +56,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   final categories = <String>[
     "Explore",
+    "Updates",
     "Reading",
     "Appearance",
     "Local Favorites",
@@ -65,6 +68,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   final icons = <IconData>[
     Icons.explore,
+    Icons.update,
     Icons.book,
     Icons.color_lens,
     Icons.collections_bookmark_rounded,
@@ -243,13 +247,14 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildSettingsContent(int pageIndex) {
     return switch (pageIndex) {
       0 => const ExploreSettings(),
-      1 => const ReaderSettings(),
-      2 => const AppearanceSettings(),
-      3 => const LocalFavoritesSettings(),
-      4 => const AppSettings(),
-      5 => const NetworkSettings(),
-      6 => const AboutSettings(),
-      7 => const DebugPage(),
+      1 => const UpdatesSettings(),
+      2 => const ReaderSettings(),
+      3 => const AppearanceSettings(),
+      4 => const LocalFavoritesSettings(),
+      5 => const AppSettings(),
+      6 => const NetworkSettings(),
+      7 => const AboutSettings(),
+      8 => const DebugPage(),
       _ => throw UnimplementedError(),
     };
   }
@@ -268,13 +273,14 @@ class _SettingsDetailPage extends StatelessWidget {
   Widget _buildPage() {
     return switch (pageIndex) {
       0 => const ExploreSettings(),
-      1 => const ReaderSettings(),
-      2 => const AppearanceSettings(),
-      3 => const LocalFavoritesSettings(),
-      4 => const AppSettings(),
-      5 => const NetworkSettings(),
-      6 => const AboutSettings(),
-      7 => const DebugPage(),
+      1 => const UpdatesSettings(),
+      2 => const ReaderSettings(),
+      3 => const AppearanceSettings(),
+      4 => const LocalFavoritesSettings(),
+      5 => const AppSettings(),
+      6 => const NetworkSettings(),
+      7 => const AboutSettings(),
+      8 => const DebugPage(),
       _ => throw UnimplementedError(),
     };
   }

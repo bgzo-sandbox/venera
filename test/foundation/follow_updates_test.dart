@@ -76,7 +76,9 @@ void main() {
   late LocalFavoritesManager manager;
 
   setUp(() async {
-    tempDir = Directory.systemTemp.createTempSync('venera-follow-updates-test-');
+    tempDir = Directory.systemTemp.createTempSync(
+      'venera-follow-updates-test-',
+    );
     PathProviderPlatform.instance = _TestPathProviderPlatform(tempDir.path);
     App.dataPath = tempDir.path;
 
@@ -104,41 +106,43 @@ void main() {
     }
   });
 
-  test('skips comics already marked as updated when skipCheckIfHasNewUpdate is true',
-      () async {
-    const folder = 'Follow Updates';
-    const key = 'mock-skip';
-    var loadCalls = 0;
-    ComicSourceManager().add(
-      _mockSource(key, (id) async {
-        loadCalls++;
-        return Res(
-          ComicDetails.fromJson({
-            'title': 'Comic',
-            'cover': 'cover',
-            'sourceKey': key,
-            'comicId': id,
-            'tags': <String, dynamic>{},
-          }),
-        );
-      }),
-    );
-    var type = ComicType.fromKey(key);
+  test(
+    'skips comics already marked as updated when skipCheckIfHasNewUpdate is true',
+    () async {
+      const folder = 'Follow Updates';
+      const key = 'mock-skip';
+      var loadCalls = 0;
+      ComicSourceManager().add(
+        _mockSource(key, (id) async {
+          loadCalls++;
+          return Res(
+            ComicDetails.fromJson({
+              'title': 'Comic',
+              'cover': 'cover',
+              'sourceKey': key,
+              'comicId': id,
+              'tags': <String, dynamic>{},
+            }),
+          );
+        }),
+      );
+      var type = ComicType.fromKey(key);
 
-    manager.createFolder(folder);
-    manager.prepareTableForFollowUpdates(folder);
-    manager.addComic(folder, _comic('comic-1', type), null, 'chapter-1');
-    manager.updateUpdateTime(folder, 'comic-1', type, 'chapter-2');
-    expect(manager.countUpdates(folder), 1);
+      manager.createFolder(folder);
+      manager.prepareTableForFollowUpdates(folder);
+      manager.addComic(folder, _comic('comic-1', type), null, 'chapter-1');
+      manager.updateUpdateTime(folder, 'comic-1', type, 'chapter-2');
+      expect(manager.countUpdates(folder), 1);
 
-    appdata.settings['skipCheckIfHasNewUpdate'] = true;
-    await updateFolder(folder, true).toList();
-    expect(loadCalls, 0, reason: 'has_new_update comic should be skipped');
+      appdata.settings['skipCheckIfHasNewUpdate'] = true;
+      await updateFolder(folder, true).toList();
+      expect(loadCalls, 0, reason: 'has_new_update comic should be skipped');
 
-    appdata.settings['skipCheckIfHasNewUpdate'] = false;
-    await updateFolder(folder, true).toList();
-    expect(loadCalls, 1, reason: 'should re-check when skip is disabled');
-  });
+      appdata.settings['skipCheckIfHasNewUpdate'] = false;
+      await updateFolder(folder, true).toList();
+      expect(loadCalls, 1, reason: 'should re-check when skip is disabled');
+    },
+  );
 
   test('respects comicUpdateCheckInterval when deciding to re-check', () async {
     const folder = 'Follow Updates';
@@ -173,7 +177,9 @@ void main() {
       where id == ? and type == ?;
     ''',
       [
-        DateTime.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
+        DateTime.now()
+            .subtract(const Duration(hours: 2))
+            .millisecondsSinceEpoch,
         'comic-1',
         type.value,
       ],

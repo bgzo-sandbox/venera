@@ -113,7 +113,10 @@ void updateFolderBase(
       var lastCheckTime = comic.lastCheckTime;
       if (lastCheckTime != null &&
           DateTime.now().difference(lastCheckTime).inHours <
-              (int.tryParse(appdata.settings['comicUpdateCheckInterval']?.toString() ?? '24') ??
+              (int.tryParse(
+                    appdata.settings['comicUpdateCheckInterval']?.toString() ??
+                        '24',
+                  ) ??
                   24)) {
         current++;
         stream.add(UpdateProgress(total, current, errors, updated));
