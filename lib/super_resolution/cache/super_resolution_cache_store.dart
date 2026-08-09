@@ -33,8 +33,12 @@ class SuperResolutionCacheStore {
   int get currentSize => _currentSize;
 
   /// Sets the cache size limit in megabytes, mirroring [CacheManager.setLimitSize].
-  void setLimitSize(int mb) {
+  ///
+  /// The new limit is applied immediately: entries are evicted right away when
+  /// the current size exceeds it, instead of waiting for the next write.
+  Future<void> setLimitSize(int mb) async {
     _limitSize = mb * 1024 * 1024;
+    await _evictIfNeeded();
   }
 
   /// Resolves and creates the cache directory at startup.
@@ -139,8 +143,16 @@ class SuperResolutionCacheStore {
     }
     try {
       final file = File(cachePath);
-      await file.writeAsBytes(data);
-      _currentSize += data.length;
+      if (await file.exists()) {
+        // Overwriting an existing entry must not double-count: replace the
+        // old size instead of adding a fresh one on top of it.
+        final oldSize = await file.length();
+        await file.writeAsBytes(data);
+        _currentSize = _currentSize - oldSize + data.length;
+      } else {
+        await file.writeAsBytes(data);
+        _currentSize += data.length;
+      }
       await _evictIfNeeded();
     } catch (e) {
       Log.error('SuperResolution', 'cache write error: $e');
@@ -152,9 +164,10 @@ class SuperResolutionCacheStore {
     if (_currentSize <= _limitSize || _cacheDir == null) {
       return;
     }
+    List<File> files;
     try {
       final dir = Directory(_cacheDir!);
-      final files = dir.listSync().whereType<File>().toList()
+      files = dir.listSync().whereType<File>().toList()
         ..sort((a, b) {
           final timeComparison = a.lastModifiedSync().compareTo(
             b.lastModifiedSync(),
@@ -166,19 +179,29 @@ class SuperResolutionCacheStore {
           }
           return a.path.compareTo(b.path);
         });
-      for (final file in files) {
-        if (_currentSize <= _limitSize) {
-          break;
-        }
+    } catch (e) {
+      Log.error('SuperResolution', 'cache eviction error: $e');
+      return;
+    }
+    for (final file in files) {
+      if (_currentSize <= _limitSize) {
+        break;
+      }
+      try {
         final size = await file.length();
         await file.delete();
         _currentSize -= size;
         if (_currentSize < 0) {
           _currentSize = 0;
         }
+      } catch (e) {
+        // A single failing entry (locked, permission, already deleted) must
+        // not abort the whole eviction pass; keep going with the others.
+        Log.error(
+          'SuperResolution',
+          'cache eviction error for ${file.path}: $e',
+        );
       }
-    } catch (e) {
-      Log.error('SuperResolution', 'cache eviction error: $e');
     }
   }
 
