@@ -103,6 +103,7 @@ class _AppSettingsState extends State<AppSettings> {
               allowCancel: false,
             );
             await CacheManager().clear();
+            await CacheManager.clearRootCacheFiles();
             await SuperResolutionService.instance.clearCache();
             await _refreshSuperResolutionCacheSize();
             loadingDialog.close();
