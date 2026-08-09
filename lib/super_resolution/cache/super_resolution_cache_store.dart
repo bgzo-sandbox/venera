@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:venera/foundation/log.dart';
@@ -36,18 +37,22 @@ class SuperResolutionCacheStore {
 
   /// Maps a logical cache key to a file path on disk.
   ///
-  /// The hashed filename avoids leaking raw source paths and keeps file names
-  /// short even when the upstream cache key contains long request metadata.
-  String? getCachePath(String key) {
+  /// The MD5 hashed filename avoids leaking raw source paths, keeps file names
+  /// short even when the upstream cache key contains long request metadata, and
+  /// matches the hashing convention used by the rest of the app
+  /// ([CacheManager], image favorites). The extension mirrors the actual
+  /// encoding of the stored bytes so the file can be inspected directly.
+  String? getCachePath(String key, {required String extension}) {
     if (_cacheDir == null) {
       return null;
     }
-    return path.join(_cacheDir!, '${key.hashCode.abs()}.png');
+    final name = md5.convert(key.codeUnits).toString();
+    return path.join(_cacheDir!, '$name.$extension');
   }
 
   /// Reads cached bytes for a previously processed request.
-  Future<Uint8List?> read(String key) async {
-    final cachePath = getCachePath(key);
+  Future<Uint8List?> read(String key, {required String extension}) async {
+    final cachePath = getCachePath(key, extension: extension);
     if (cachePath == null) {
       return null;
     }
@@ -64,8 +69,12 @@ class SuperResolutionCacheStore {
   }
 
   /// Writes processed bytes to disk for future reuse.
-  Future<void> write(String key, Uint8List data) async {
-    final cachePath = getCachePath(key);
+  Future<void> write(
+    String key,
+    Uint8List data, {
+    required String extension,
+  }) async {
+    final cachePath = getCachePath(key, extension: extension);
     if (cachePath == null) {
       return;
     }

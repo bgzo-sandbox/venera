@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:venera/super_resolution/models/super_resolution_output.dart';
 import 'package:venera/super_resolution/models/super_resolution_request.dart';
 
 /// Algorithm-specific processing contract used by the module facade.
@@ -11,5 +10,7 @@ abstract class SuperResolutionProcessor {
   /// Runs a single super resolution request.
   ///
   /// Returning `null` means the algorithm did not produce usable output.
-  Future<Uint8List?> process(SuperResolutionRequest request);
+  /// The returned [SuperResolutionOutput] carries the actual encoding so the
+  /// cache layer can store the result with a format-accurate extension.
+  Future<SuperResolutionOutput?> process(SuperResolutionRequest request);
 }
