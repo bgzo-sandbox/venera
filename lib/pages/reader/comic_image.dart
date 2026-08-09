@@ -267,6 +267,16 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       return source.bytes;
     }
     if (source is ReaderImageProvider) {
+      // Prefer the bytes already persisted by the image download pipeline.
+      // Going through CacheManager avoids re-downloading the image that was
+      // already fetched and decoded for the screen.
+      final cacheKey =
+          '${source.imageKey}@${source.sourceKey}@${source.cid}@${source.eid}';
+      final cached = await CacheManager().findCache(cacheKey);
+      if (cached != null) {
+        return cached.readAsBytes();
+      }
+      // Fall back to the provider load pipeline when the cache was evicted.
       return source.load(StreamController<ImageChunkEvent>(), () {});
     }
     Log.info(
