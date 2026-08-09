@@ -70,6 +70,9 @@ Future<void> init() async {
   }
   // 初始化超分服务
   await SuperResolutionService.instance.init();
+  SuperResolutionService.instance.setCacheLimitSize(
+    appdata.settings['cacheSize'],
+  );
   FlutterError.onError = (details) {
     Log.error("Unhandled Exception", "${details.exception}\n${details.stack}");
   };

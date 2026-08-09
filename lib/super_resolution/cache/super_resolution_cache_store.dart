@@ -16,9 +16,25 @@ class SuperResolutionCacheStore {
 
   static const String _cacheDirectoryName = 'super_resolution_cache';
 
+  static const int _defaultLimitSize = 2 * 1024 * 1024 * 1024;
+
   String? _cacheDir;
 
+  /// Hard cap for the cache in bytes. Oldest files are evicted on write once
+  /// the total size exceeds this limit.
+  int _limitSize = _defaultLimitSize;
+
+  /// Current total size of cached files in bytes.
+  int _currentSize = 0;
+
   String? get cacheDirectory => _cacheDir;
+
+  int get currentSize => _currentSize;
+
+  /// Sets the cache size limit in megabytes, mirroring [CacheManager.setLimitSize].
+  void setLimitSize(int mb) {
+    _limitSize = mb * 1024 * 1024;
+  }
 
   /// Resolves and creates the temporary cache directory at startup.
   Future<void> init() async {
@@ -29,6 +45,7 @@ class SuperResolutionCacheStore {
       if (!await cacheDirectory.exists()) {
         await cacheDirectory.create(recursive: true);
       }
+      _currentSize = await getCacheSize();
       Log.info('SuperResolution', 'cache initialized at $_cacheDir');
     } catch (e) {
       Log.error('SuperResolution', 'cache init error: $e');
@@ -81,8 +98,35 @@ class SuperResolutionCacheStore {
     try {
       final file = File(cachePath);
       await file.writeAsBytes(data);
+      _currentSize += data.length;
+      await _evictIfNeeded();
     } catch (e) {
       Log.error('SuperResolution', 'cache write error: $e');
+    }
+  }
+
+  /// Evicts the oldest cached files until the total size is under the limit.
+  Future<void> _evictIfNeeded() async {
+    if (_currentSize <= _limitSize || _cacheDir == null) {
+      return;
+    }
+    try {
+      final dir = Directory(_cacheDir!);
+      final files = dir.listSync().whereType<File>().toList()
+        ..sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
+      for (final file in files) {
+        if (_currentSize <= _limitSize) {
+          break;
+        }
+        final size = await file.length();
+        await file.delete();
+        _currentSize -= size;
+        if (_currentSize < 0) {
+          _currentSize = 0;
+        }
+      }
+    } catch (e) {
+      Log.error('SuperResolution', 'cache eviction error: $e');
     }
   }
 
@@ -97,6 +141,7 @@ class SuperResolutionCacheStore {
         await dir.delete(recursive: true);
         await dir.create(recursive: true);
       }
+      _currentSize = 0;
       Log.info('SuperResolution', 'cache cleared');
     } catch (e) {
       Log.error('SuperResolution', 'cache clear error: $e');
@@ -120,6 +165,7 @@ class SuperResolutionCacheStore {
           totalSize += await entity.length();
         }
       }
+      _currentSize = totalSize;
       return totalSize;
     } catch (e) {
       Log.error('SuperResolution', 'cache size error: $e');

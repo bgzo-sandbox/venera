@@ -16,6 +16,7 @@ import 'package:venera/foundation/js_engine.dart';
 import 'package:venera/foundation/local.dart';
 import 'package:venera/foundation/log.dart';
 import 'package:venera/network/app_dio.dart';
+import 'package:venera/super_resolution/super_resolution_service.dart';
 import 'package:venera/utils/auth_storage.dart';
 import 'package:venera/utils/data.dart';
 import 'package:venera/utils/data_sync.dart';
