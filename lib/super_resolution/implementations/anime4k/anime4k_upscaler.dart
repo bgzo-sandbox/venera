@@ -10,6 +10,13 @@ const double _kAnime4KDefaultScaleFactor = 2.0;
 const int _kAnime4KStrengthUnit = 255;
 const int _kAnime4KMaxStrength = 0xFFFF;
 
+/// Hard cap on the total output pixel count.
+///
+/// Every working buffer inside the algorithm is `width * height` in size, so
+/// unbounded scaling can exhaust memory on mobile devices. Outputs above this
+/// limit are scaled down automatically by [Anime4KUpscaler.upscale].
+const int kMaxOutputPixels = 8_000_000;
+
 /// Low-level Anime4K upscaler implementation.
 ///
 /// This class contains the pixel-processing algorithm itself. The surrounding
@@ -64,9 +71,23 @@ class Anime4KUpscaler {
   /// The method is intentionally split into named stages so later maintenance
   /// can tweak one step without losing the overall processing flow.
   img.Image upscale(img.Image source) {
+    // Guard: refuse to process sources that already exceed the output cap.
+    if (source.width * source.height > kMaxOutputPixels) {
+      return source;
+    }
+    // Stage 0: clamp the scale factor so the output stays within the pixel cap.
+    // The lower bound keeps the output at least as large as the source, so this
+    // stage never downsamples below the original resolution.
+    final double effectiveScale = math.max(
+      1.0,
+      math.min(
+        scaleFactor,
+        math.sqrt(kMaxOutputPixels / (source.width * source.height)),
+      ),
+    );
     // Stage 1: resize the source image to the target working resolution.
-    final int newWidth = (source.width * scaleFactor).round();
-    final int newHeight = (source.height * scaleFactor).round();
+    final int newWidth = (source.width * effectiveScale).round();
+    final int newHeight = (source.height * effectiveScale).round();
     final img.Image upscaled = img.copyResize(
       source,
       width: newWidth,
