@@ -3,7 +3,7 @@ goal: 修复 Anime4K 超分模块 PR #2 审查发现的 10 项问题
 version: 1.0
 created: 2026-08-09
 modified: 2026-08-09
-status: In Progress
+status: Completed
 tags: refactor, bug, anime4k, super-resolution, memory, cache
 ---
 
