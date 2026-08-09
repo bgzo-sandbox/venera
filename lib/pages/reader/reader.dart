@@ -748,6 +748,9 @@ abstract mixin class _ReaderLocation {
 
   bool toChapter(int c, {bool toLastPage = false}) {
     if (_validateChapter(c) && !isLoading) {
+      // Drop anime4K results of the old chapter so processed bytes do not
+      // stay resident in memory while reading a long continuous session.
+      _imageViewController?.releaseAnime4KResults();
       chapter = c;
       page = 1;
       _jumpToLastPageOnLoad = toLastPage;
