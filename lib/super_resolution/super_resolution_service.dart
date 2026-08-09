@@ -105,8 +105,19 @@ class SuperResolutionService {
   /// The second cache lookup inside the scheduler closes the race where two
   /// near-simultaneous callers miss the first read before one of them finishes
   /// processing and writes the result.
+  /// Attempts a cache read for any encoding the processors may have produced.
+  Future<Uint8List?> _readCache(String key) async {
+    for (final extension in const ['png', 'jpg']) {
+      final cached = await cacheStore.read(key, extension: extension);
+      if (cached != null) {
+        return cached;
+      }
+    }
+    return null;
+  }
+
   Future<Uint8List?> _processImage(SuperResolutionRequest request) async {
-    final cached = await cacheStore.read(request.effectiveCacheKey);
+    final cached = await _readCache(request.effectiveCacheKey);
     if (cached != null) {
       Log.info(
         'SuperResolution',
@@ -116,7 +127,7 @@ class SuperResolutionService {
     }
 
     return scheduler.schedule<Uint8List?>(request.effectiveCacheKey, () async {
-      final cachedResult = await cacheStore.read(request.effectiveCacheKey);
+      final cachedResult = await _readCache(request.effectiveCacheKey);
       if (cachedResult != null) {
         Log.info(
           'SuperResolution',
@@ -129,20 +140,25 @@ class SuperResolutionService {
         'SuperResolution',
         'processing start: algorithm=${request.algorithm.name} cacheKey=${request.cacheKey} scale=${request.scaleFactor} push=${request.pushStrength} grad=${request.pushGradStrength} queued=${scheduler.queuedTasks} running=${scheduler.runningTasks}',
       );
-      final result = await _selectProcessor(request.algorithm).process(request);
-      if (result != null) {
-        await cacheStore.write(request.effectiveCacheKey, result);
+      final output = await _selectProcessor(request.algorithm).process(request);
+      if (output != null) {
+        await cacheStore.write(
+          request.effectiveCacheKey,
+          output.bytes,
+          extension: output.fileExtension,
+        );
         Log.info(
           'SuperResolution',
-          'processing complete: algorithm=${request.algorithm.name} cacheKey=${request.cacheKey} bytes=${result.length}',
+          'processing complete: algorithm=${request.algorithm.name} cacheKey=${request.cacheKey} bytes=${output.bytes.length}',
         );
+        return output.bytes;
       } else {
         Log.error(
           'SuperResolution',
           'processing returned null: algorithm=${request.algorithm.name} cacheKey=${request.cacheKey}',
         );
       }
-      return result;
+      return null;
     });
   }
 
