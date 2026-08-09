@@ -139,7 +139,7 @@ void main() {
     });
 
     test('evicts the oldest file once the size limit is exceeded', () async {
-      store.setLimitSize(1); // 1MB
+      await store.setLimitSize(1); // 1MB
       const chunk = 700 * 1024;
       await store.write('old', Uint8List(chunk), extension: 'png');
       final oldPath = store.getCachePath('old', extension: 'png')!;
@@ -166,6 +166,29 @@ void main() {
       expect(await store.getCacheSize(), 0);
       final aPath = store.getCachePath('a', extension: 'png')!;
       expect(await File(aPath).exists(), isFalse);
+    });
+
+    test('overwriting the same key does not double-count the size', () async {
+      await store.write('a', Uint8List(100), extension: 'png');
+      await store.write('a', Uint8List(200), extension: 'png');
+      expect(
+        await store.getCacheSize(),
+        200,
+        reason: 're-processing the same key must replace, not accumulate',
+      );
+    });
+
+    test('lowering the limit evicts entries immediately', () async {
+      await store.write('a', Uint8List(600 * 1024), extension: 'png');
+      await store.write('b', Uint8List(600 * 1024), extension: 'png');
+      expect(await store.getCacheSize(), greaterThan(1024 * 1024));
+
+      await store.setLimitSize(1); // 1MB, applied without another write
+
+      final aPath = store.getCachePath('a', extension: 'png')!;
+      final bPath = store.getCachePath('b', extension: 'png')!;
+      expect(await File(aPath).exists() || await File(bPath).exists(), isTrue);
+      expect(await store.getCacheSize(), lessThanOrEqualTo(1024 * 1024));
     });
   });
 
