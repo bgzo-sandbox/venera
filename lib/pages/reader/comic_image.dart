@@ -186,6 +186,13 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       'trigger start: enabled=$enabled network=$enableNetwork widgetProvider=${widget.image.runtimeType} sourceProvider=${source.runtimeType} cacheKey=${_buildCacheKey(source)}',
     );
 
+    // Flag the processing state before loading bytes so the UI reflects the
+    // pending work immediately instead of after the byte load completes.
+    setState(() {
+      _isUpscaling = true;
+    });
+    _notifyReaderScaffold();
+
     final imageBytes = await _loadSourceBytes(source);
     final cacheKey = _buildCacheKey(source);
     if (!mounted || imageBytes == null || cacheKey == null) {
@@ -193,6 +200,10 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
         'Anime4K',
         'skip trigger: mounted=$mounted imageBytes=${imageBytes?.length ?? 0} cacheKey=$cacheKey',
       );
+      setState(() {
+        _isUpscaling = false;
+      });
+      _notifyReaderScaffold();
       return;
     }
 
@@ -200,11 +211,6 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       'Anime4K',
       'loaded source bytes: cacheKey=$cacheKey bytes=${imageBytes.length}',
     );
-
-    setState(() {
-      _isUpscaling = true;
-    });
-    _notifyReaderScaffold();
 
     final scaleFactor =
         (_getAnime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
