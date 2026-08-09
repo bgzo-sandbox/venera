@@ -258,8 +258,10 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   }
 
   ImageProvider? _getAnime4KSourceProvider(ImageProvider provider) {
-    if (provider is ResizeImage) {
-      return provider.imageProvider;
+    // Unwrap any number of nested ResizeImage layers so the underlying real
+    // provider is used for byte loading and cache key building.
+    while (provider is ResizeImage) {
+      provider = provider.imageProvider;
     }
     return provider;
   }
