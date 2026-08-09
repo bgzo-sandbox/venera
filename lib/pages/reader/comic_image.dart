@@ -73,6 +73,8 @@ class ComicImage extends StatefulWidget {
 }
 
 class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
+  Uint8List? _upscaledBytes;
+  bool _isUpscaling = false;
   ImageStream? _imageStream;
   ImageInfo? _imageInfo;
   ImageChunkEvent? _loadingProgress;
@@ -85,6 +87,37 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   ImageStreamCompleterHandle? _completerHandle;
 
   static final Map<int, Size> _cache = {};
+
+  bool get hasAnime4KResult => _upscaledBytes != null;
+
+  bool get isAnime4KProcessing => _isUpscaling;
+
+  /// Drops the upscaled result and pending processing state.
+  ///
+  /// Called by the reader controller when the chapter changes so processed
+  /// bytes do not stay resident in memory while the widget is off-screen.
+  void releaseAnime4KResult() {
+    _upscaledBytes = null;
+    _isUpscaling = false;
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String? get readerImageKey {
+    final source = _getAnime4KSourceProvider(widget.image);
+    if (source is ReaderImageProvider) {
+      return source.imageKey;
+    }
+    return null;
+  }
+
+  void _notifyReaderScaffold() {
+    if (!mounted) {
+      return;
+    }
+    context.readerScaffold.update();
+  }
 
   static clear() => _cache.clear();
 
@@ -119,14 +152,175 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       _stopListeningToStream(keepStreamAlive: true);
     }
 
+    _triggerImageUpscale();
+
     super.didChangeDependencies();
+  }
+
+  Future<void> _triggerImageUpscale() async {
+    if (!mounted || _isUpscaling || _upscaledBytes != null) {
+      if (mounted && (_isUpscaling || _upscaledBytes != null)) {
+        Log.info(
+          'Anime4K',
+          'skip trigger: upscaling=$_isUpscaling hasUpscaledBytes=${_upscaledBytes != null}',
+        );
+      }
+      return;
+    }
+    final enabled = context.anime4KSetting<bool>('enableAnime4K') ?? false;
+    if (!enabled) {
+      return;
+    }
+
+    final source = _getAnime4KSourceProvider(widget.image);
+    if (source == null) {
+      Log.info(
+        'Anime4K',
+        'skip trigger: unsupported image provider ${widget.image.runtimeType}',
+      );
+      return;
+    }
+
+    final enableNetwork =
+        context.anime4KSetting<bool>('enableAnime4KForNetwork') ?? false;
+    if (source is ReaderImageProvider &&
+        !source.imageKey.startsWith('file://') &&
+        !enableNetwork) {
+      Log.info(
+        'Anime4K',
+        'skip trigger: network reader image disabled imageKey=${source.imageKey}',
+      );
+      return;
+    }
+
+    Log.info(
+      'Anime4K',
+      'trigger start: enabled=$enabled network=$enableNetwork widgetProvider=${widget.image.runtimeType} sourceProvider=${source.runtimeType} cacheKey=${_buildCacheKey(source)}',
+    );
+
+    // Flag the processing state before loading bytes so the UI reflects the
+    // pending work immediately instead of after the byte load completes.
+    setState(() {
+      _isUpscaling = true;
+    });
+    _notifyReaderScaffold();
+
+    final imageBytes = await _loadSourceBytes(source);
+    final cacheKey = _buildCacheKey(source);
+    if (!mounted || imageBytes == null || cacheKey == null) {
+      Log.info(
+        'Anime4K',
+        'skip trigger: mounted=$mounted imageBytes=${imageBytes?.length ?? 0} cacheKey=$cacheKey',
+      );
+      setState(() {
+        _isUpscaling = false;
+      });
+      _notifyReaderScaffold();
+      return;
+    }
+
+    Log.info(
+      'Anime4K',
+      'loaded source bytes: cacheKey=$cacheKey bytes=${imageBytes.length}',
+    );
+
+    final scaleFactor =
+        (context.anime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
+    final pushStrength =
+        (context.anime4KSetting<num>('anime4KPushStrength'))?.toDouble() ??
+        0.31;
+    final pushGradStrength =
+        (context.anime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ??
+        1.0;
+
+    final result = await SuperResolutionService.instance.processImage(
+      SuperResolutionRequest(
+        cacheKey: cacheKey,
+        imageBytes: imageBytes,
+        scaleFactor: scaleFactor,
+        pushStrength: pushStrength,
+        pushGradStrength: pushGradStrength,
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _upscaledBytes = result;
+      _isUpscaling = false;
+    });
+    _notifyReaderScaffold();
+
+    Log.info(
+      'Anime4K',
+      'trigger end: cacheKey=$cacheKey resultBytes=${result?.length ?? 0} applied=${result != null}',
+    );
+  }
+
+  ImageProvider? _getAnime4KSourceProvider(ImageProvider provider) {
+    // Unwrap any number of nested ResizeImage layers so the underlying real
+    // provider is used for byte loading and cache key building.
+    while (provider is ResizeImage) {
+      provider = provider.imageProvider;
+    }
+    return provider;
+  }
+
+  Future<Uint8List?> _loadSourceBytes(ImageProvider source) async {
+    if (source is FileImage) {
+      return source.file.readAsBytes();
+    }
+    if (source is MemoryImage) {
+      return source.bytes;
+    }
+    if (source is ReaderImageProvider) {
+      // Prefer the bytes already persisted by the image download pipeline.
+      // Going through CacheManager avoids re-downloading the image that was
+      // already fetched and decoded for the screen.
+      final cacheKey =
+          '${source.imageKey}@${source.sourceKey}@${source.cid}@${source.eid}';
+      final cached = await CacheManager().findCache(cacheKey);
+      if (cached != null) {
+        return cached.readAsBytes();
+      }
+      // Fall back to the provider load pipeline when the cache was evicted.
+      return source.load(StreamController<ImageChunkEvent>(), () {});
+    }
+    Log.info(
+      'Anime4K',
+      'unsupported source provider for bytes ${source.runtimeType}',
+    );
+    return null;
+  }
+
+  String? _buildCacheKey(ImageProvider source) {
+    if (source is FileImage) {
+      return source.file.path;
+    }
+    if (source is MemoryImage) {
+      return 'memory_${source.bytes.length}_${source.hashCode}';
+    }
+    if (source is ReaderImageProvider) {
+      return source.key;
+    }
+    return null;
   }
 
   @override
   void didUpdateWidget(ComicImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.image != oldWidget.image) {
+      Log.info(
+        'Anime4K',
+        'image provider changed: old=${oldWidget.image.runtimeType} new=${widget.image.runtimeType}',
+      );
+      _upscaledBytes = null;
+      _isUpscaling = false;
       _resolveImage();
+      _notifyReaderScaffold();
+      _triggerImageUpscale();
     }
   }
 
@@ -347,6 +541,10 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
         var width = widget.width;
         var height = widget.height;
 
+        final showAnime4K =
+            _upscaledBytes != null &&
+            context.readerScaffold.showAnime4KProcessed;
+
         if (_imageInfo != null) {
           // Record the height and the width of the image
           _cache[widget.image.hashCode] = Size(
@@ -376,7 +574,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
 
         if (_imageInfo != null) {
           // build image
-          Widget result = RawImage(
+          Widget originalImage = RawImage(
             // Do not clone the image, because RawImage is a stateless wrapper.
             // The image will be disposed by this state object when it is not needed
             // anymore, such as when it is unmounted or when the image stream pushes
@@ -398,6 +596,44 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
             isAntiAlias: widget.isAntiAlias,
             filterQuality: widget.filterQuality,
           );
+
+          Widget result;
+          if (showAnime4K) {
+            result = Stack(
+              fit: StackFit.passthrough,
+              alignment: Alignment.center,
+              children: [
+                originalImage,
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  child: Image.memory(
+                    _upscaledBytes!,
+                    width: width,
+                    height: height,
+                    color: widget.color,
+                    opacity: widget.opacity,
+                    colorBlendMode: widget.colorBlendMode,
+                    fit: widget.fit,
+                    alignment: widget.alignment,
+                    repeat: widget.repeat,
+                    centerSlice: widget.centerSlice,
+                    matchTextDirection: widget.matchTextDirection,
+                    gaplessPlayback: true,
+                    isAntiAlias: widget.isAntiAlias,
+                    filterQuality: widget.filterQuality,
+                    excludeFromSemantics: true,
+                  ),
+                  builder: (context, opacity, child) {
+                    return Opacity(opacity: opacity, child: child);
+                  },
+                ),
+              ],
+            );
+          } else {
+            result = originalImage;
+          }
 
           if (!widget.excludeFromSemantics) {
             result = Semantics(
