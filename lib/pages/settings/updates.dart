@@ -37,11 +37,6 @@ class _UpdatesSettingsState extends State<UpdatesSettings> {
                   .tl,
           settingKey: "skipCheckIfHasNewUpdate",
         ).toSliver(),
-        _CallbackSetting(
-          title: "Configure follow updates".tl,
-          actionTitle: "Open".tl,
-          callback: () => context.to(() => const FollowUpdatesPage()),
-        ).toSliver(),
       ],
     );
   }
