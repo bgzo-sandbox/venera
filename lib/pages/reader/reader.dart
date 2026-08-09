@@ -66,6 +66,19 @@ extension _ReaderContext on BuildContext {
 
   _ReaderScaffoldState get readerScaffold =>
       findAncestorStateOfType<_ReaderScaffoldState>()!;
+
+  /// Reads a reader setting with the anime4K preference cascade.
+  ///
+  /// Single access point for anime4K settings so every caller resolves the
+  /// same value: comic-specific settings first, then device/global settings.
+  T? anime4KSetting<T>(String key) {
+    final reader = this.reader;
+    return appdata.settings.getReaderSetting(
+      reader.cid,
+      reader.type.sourceKey,
+      key,
+    ) as T?;
+  }
 }
 
 class Reader extends StatefulWidget {

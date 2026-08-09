@@ -168,12 +168,7 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
   }
 
   bool get isAnime4KEnabled =>
-      appdata.settings.getReaderSetting(
-        context.reader.cid,
-        context.reader.type.sourceKey,
-        'enableAnime4K',
-      ) ==
-      true;
+      context.anime4KSetting<bool>('enableAnime4K') == true;
 
   void toggleAnime4KDisplay() {
     setState(() {

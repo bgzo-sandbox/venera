@@ -167,7 +167,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       }
       return;
     }
-    final enabled = _getAnime4KSetting<bool>('enableAnime4K') ?? false;
+    final enabled = context.anime4KSetting<bool>('enableAnime4K') ?? false;
     if (!enabled) {
       return;
     }
@@ -182,7 +182,7 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     }
 
     final enableNetwork =
-        _getAnime4KSetting<bool>('enableAnime4KForNetwork') ?? false;
+        context.anime4KSetting<bool>('enableAnime4KForNetwork') ?? false;
     if (source is ReaderImageProvider &&
         !source.imageKey.startsWith('file://') &&
         !enableNetwork) {
@@ -225,11 +225,11 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     );
 
     final scaleFactor =
-        (_getAnime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
+        (context.anime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
     final pushStrength =
-        (_getAnime4KSetting<num>('anime4KPushStrength'))?.toDouble() ?? 0.31;
+        (context.anime4KSetting<num>('anime4KPushStrength'))?.toDouble() ?? 0.31;
     final pushGradStrength =
-        (_getAnime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ?? 1.0;
+        (context.anime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ?? 1.0;
 
     final result = await SuperResolutionService.instance.processImage(
       SuperResolutionRequest(
@@ -255,19 +255,6 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
       'Anime4K',
       'trigger end: cacheKey=$cacheKey resultBytes=${result?.length ?? 0} applied=${result != null}',
     );
-  }
-
-  T? _getAnime4KSetting<T>(String key) {
-    final sourceKey = context.reader.type.comicSource?.key;
-    if (sourceKey != null) {
-      return appdata.settings.getReaderSetting(
-            context.reader.cid,
-            sourceKey,
-            key,
-          )
-          as T?;
-    }
-    return appdata.settings.getDeviceReaderSetting(key) as T?;
   }
 
   ImageProvider? _getAnime4KSourceProvider(ImageProvider provider) {
