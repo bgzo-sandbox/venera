@@ -24,11 +24,18 @@ class SuperResolutionTaskScheduler {
   /// Enqueues work and dedupes by request key.
   ///
   /// Callers that schedule the same key while the task is still running receive
-  /// the same future instead of launching duplicate processing.
+  /// the same future instead of launching duplicate processing. When the
+  /// generic type [T] is nullable, an in-flight task that completed with a
+  /// `null` result is replayed as `null` without casting errors.
   Future<T> schedule<T>(String key, Future<T> Function() task) {
     final inflight = _inflightTasks[key];
     if (inflight != null) {
-      return inflight.then((value) => value as T);
+      // Replay the in-flight result. For nullable [T] a completed `null` is
+      // replayed as `null` without casting errors; for non-nullable [T] the
+      // original task can never complete with `null`, so the cast is safe.
+      return inflight
+          .then<dynamic>((value) => value)
+          .then<T>((value) => value as T);
     }
 
     final completer = Completer<T>();
