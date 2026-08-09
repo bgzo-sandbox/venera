@@ -105,7 +105,10 @@ void main() {
       const chunk = 700 * 1024;
       await store.write('old', Uint8List(chunk), extension: 'png');
       final oldPath = store.getCachePath('old', extension: 'png')!;
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      // Pin an explicit older mtime instead of relying on wall-clock deltas:
+      // CI filesystems may report identical timestamps for files written in
+      // quick succession, making the eviction order ambiguous.
+      await File(oldPath).setLastModified(DateTime(2020, 1, 1));
       await store.write('new', Uint8List(chunk), extension: 'png');
       final newPath = store.getCachePath('new', extension: 'png')!;
 
