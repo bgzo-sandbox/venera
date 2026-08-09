@@ -396,7 +396,6 @@ class DataSync with ChangeNotifier {
             }
           }
         }
-        // TODO
         Log.info("Upload Data", "Data uploaded successfully");
         return const Res(true);
       } catch (e, s) {
