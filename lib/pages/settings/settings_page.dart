@@ -31,6 +31,7 @@ part 'explore_settings.dart';
 part 'setting_components.dart';
 part 'appearance.dart';
 part 'local_favorites.dart';
+part 'updates.dart';
 part 'app.dart';
 part 'auth_pin_setting.dart';
 part 'about.dart';
@@ -56,6 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   final categories = <String>[
     "Explore",
+    "Updates",
     "Reading",
     "Appearance",
     "Local Favorites",
@@ -68,6 +70,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   final icons = <IconData>[
     Icons.explore,
+    Icons.update,
     Icons.book,
     Icons.color_lens,
     Icons.collections_bookmark_rounded,
@@ -247,14 +250,15 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildSettingsContent(int pageIndex) {
     return switch (pageIndex) {
       0 => const ExploreSettings(),
-      1 => const ReaderSettings(),
-      2 => const AppearanceSettings(),
-      3 => const LocalFavoritesSettings(),
-      4 => const AppSettings(),
-      5 => const NetworkSettings(),
-      6 => const SuperResolutionSettings(),
-      7 => const AboutSettings(),
-      8 => const DebugPage(),
+      1 => const UpdatesSettings(),
+      2 => const ReaderSettings(),
+      3 => const AppearanceSettings(),
+      4 => const LocalFavoritesSettings(),
+      5 => const AppSettings(),
+      6 => const NetworkSettings(),
+      7 => const SuperResolutionSettings(),
+      8 => const AboutSettings(),
+      9 => const DebugPage(),
       _ => throw UnimplementedError(),
     };
   }
@@ -273,14 +277,15 @@ class _SettingsDetailPage extends StatelessWidget {
   Widget _buildPage() {
     return switch (pageIndex) {
       0 => const ExploreSettings(),
-      1 => const ReaderSettings(),
-      2 => const AppearanceSettings(),
-      3 => const LocalFavoritesSettings(),
-      4 => const AppSettings(),
-      5 => const NetworkSettings(),
-      6 => const SuperResolutionSettings(),
-      7 => const AboutSettings(),
-      8 => const DebugPage(),
+      1 => const UpdatesSettings(),
+      2 => const ReaderSettings(),
+      3 => const AppearanceSettings(),
+      4 => const LocalFavoritesSettings(),
+      5 => const AppSettings(),
+      6 => const NetworkSettings(),
+      7 => const SuperResolutionSettings(),
+      8 => const AboutSettings(),
+      9 => const DebugPage(),
       _ => throw UnimplementedError(),
     };
   }
