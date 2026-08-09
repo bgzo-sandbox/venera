@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'package:venera/foundation/log.dart';
 import 'package:venera/foundation/sqlite_connection.dart';
 import 'package:venera/utils/io.dart';
 
@@ -316,5 +317,27 @@ class CacheManager {
       DELETE FROM cache
     ''');
     _currentSize = 0;
+  }
+
+  /// Deletes stray files living directly in the app cache directory.
+  ///
+  /// Several features (image save/share, export temp files) write one-off
+  /// files to the root of [App.cachePath] without tracking them in the cache
+  /// database. They are safe to remove on an explicit cache clear.
+  static Future<void> clearRootCacheFiles() async {
+    final dir = Directory(App.cachePath);
+    if (!await dir.exists()) {
+      return;
+    }
+    await for (final entity in dir.list()) {
+      if (entity is! File) {
+        continue;
+      }
+      try {
+        await entity.delete();
+      } catch (e) {
+        Log.error('CacheManager', 'root cache file delete error: $e');
+      }
+    }
   }
 }
