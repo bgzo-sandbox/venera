@@ -113,7 +113,17 @@ class SuperResolutionCacheStore {
     try {
       final dir = Directory(_cacheDir!);
       final files = dir.listSync().whereType<File>().toList()
-        ..sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
+        ..sort((a, b) {
+          final timeComparison = a.lastModifiedSync().compareTo(
+            b.lastModifiedSync(),
+          );
+          // Break ties deterministically: filesystems with coarse timestamp
+          // granularity can report identical mtimes for distinct files.
+          if (timeComparison != 0) {
+            return timeComparison;
+          }
+          return a.path.compareTo(b.path);
+        });
       for (final file in files) {
         if (_currentSize <= _limitSize) {
           break;
