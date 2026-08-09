@@ -1,10 +1,22 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:venera/super_resolution/cache/super_resolution_cache_store.dart';
 import 'package:venera/super_resolution/implementations/anime4k/anime4k_processor.dart';
 import 'package:venera/super_resolution/implementations/anime4k/anime4k_upscaler.dart';
 import 'package:venera/super_resolution/runtime/super_resolution_task_scheduler.dart';
+
+class _FakePathProvider extends PathProviderPlatform {
+  _FakePathProvider(this.tempDir);
+
+  final String tempDir;
+
+  @override
+  Future<String?> getTemporaryPath() async => tempDir;
+}
 
 void main() {
   group('isPngBytes', () {
@@ -50,6 +62,69 @@ void main() {
       expect(outside.width * outside.height, greaterThan(kMaxOutputPixels));
       final upscaler = Anime4KUpscaler(scaleFactor: 1.0);
       expect(identical(upscaler.upscale(outside), outside), isTrue);
+    });
+  });
+
+  group('SuperResolutionCacheStore', () {
+    late Directory tempDir;
+    late SuperResolutionCacheStore store;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('sr_cache_test');
+      PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+      store = SuperResolutionCacheStore();
+      await store.init();
+    });
+
+    tearDown(() async {
+      await store.clear();
+      await tempDir.delete(recursive: true);
+    });
+
+    test('writes and reads files with format-accurate extensions', () async {
+      await store.write(
+        'key-a',
+        Uint8List.fromList([1, 2, 3]),
+        extension: 'png',
+      );
+      await store.write('key-b', Uint8List.fromList([4, 5]), extension: 'jpg');
+
+      final pngPath = store.getCachePath('key-a', extension: 'png')!;
+      final jpgPath = store.getCachePath('key-b', extension: 'jpg')!;
+      expect(await File(pngPath).exists(), isTrue);
+      expect(await File(jpgPath).exists(), isTrue);
+      expect(pngPath, isNot(jpgPath));
+
+      expect(await store.read('key-a', extension: 'png'), [1, 2, 3]);
+      expect(await store.read('key-b', extension: 'jpg'), [4, 5]);
+      expect(await store.read('key-a', extension: 'jpg'), isNull);
+    });
+
+    test('evicts the oldest file once the size limit is exceeded', () async {
+      store.setLimitSize(1); // 1MB
+      const chunk = 700 * 1024;
+      await store.write('old', Uint8List(chunk), extension: 'png');
+      final oldPath = store.getCachePath('old', extension: 'png')!;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await store.write('new', Uint8List(chunk), extension: 'png');
+      final newPath = store.getCachePath('new', extension: 'png')!;
+
+      expect(
+        await File(oldPath).exists(),
+        isFalse,
+        reason: 'oldest entry must be evicted first',
+      );
+      expect(await File(newPath).exists(), isTrue);
+      expect(await store.getCacheSize(), lessThanOrEqualTo(1024 * 1024));
+    });
+
+    test('clear removes all files and resets the size', () async {
+      await store.write('a', Uint8List(100), extension: 'png');
+      expect(await store.getCacheSize(), 100);
+      await store.clear();
+      expect(await store.getCacheSize(), 0);
+      final aPath = store.getCachePath('a', extension: 'png')!;
+      expect(await File(aPath).exists(), isFalse);
     });
   });
 

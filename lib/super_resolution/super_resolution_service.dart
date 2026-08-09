@@ -39,6 +39,12 @@ class SuperResolutionService {
     return cacheStore.init();
   }
 
+  /// Sets the cache size limit in megabytes, mirroring the app-wide cache
+  /// limit so processed outputs cannot accumulate unboundedly.
+  void setCacheLimitSize(int mb) {
+    cacheStore.setLimitSize(mb);
+  }
+
   /// Processes raw image bytes and returns processed bytes when successful.
   ///
   /// This is the main entry used by the reader. The service first checks the

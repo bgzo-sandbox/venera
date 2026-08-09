@@ -10,6 +10,31 @@ class AppSettings extends StatefulWidget {
 class _AppSettingsState extends State<AppSettings> {
   int _previousRetentionDays = 0;
 
+  /// Total size of the super resolution cache, fetched asynchronously because
+  /// it lives in a separate directory from the main image cache.
+  int _superResolutionCacheSize = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    SuperResolutionService.instance.getCacheSize().then((value) {
+      if (mounted) {
+        setState(() {
+          _superResolutionCacheSize = value;
+        });
+      }
+    });
+  }
+
+  Future<void> _refreshSuperResolutionCacheSize() async {
+    final size = await SuperResolutionService.instance.getCacheSize();
+    if (mounted) {
+      setState(() {
+        _superResolutionCacheSize = size;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SmoothCustomScrollView(
@@ -62,7 +87,11 @@ class _AppSettingsState extends State<AppSettings> {
         ).toSliver(),
         ListTile(
           title: Text("Cache Size".tl),
-          subtitle: Text(bytesToReadableString(CacheManager().currentSize)),
+          subtitle: Text(
+            bytesToReadableString(
+              CacheManager().currentSize + _superResolutionCacheSize,
+            ),
+          ),
         ).toSliver(),
         _CallbackSetting(
           title: "Clear Cache".tl,
@@ -74,6 +103,8 @@ class _AppSettingsState extends State<AppSettings> {
               allowCancel: false,
             );
             await CacheManager().clear();
+            await SuperResolutionService.instance.clearCache();
+            await _refreshSuperResolutionCacheSize();
             loadingDialog.close();
             if (!context.mounted) return;
             context.showMessage(message: "Cache cleared".tl);
@@ -88,6 +119,9 @@ class _AppSettingsState extends State<AppSettings> {
           max: 8192,
           onChanged: () {
             CacheManager().setLimitSize(appdata.settings['cacheSize']);
+            SuperResolutionService.instance.setCacheLimitSize(
+              appdata.settings['cacheSize'],
+            );
           },
         ).toSliver(),
         _SliderSetting(
