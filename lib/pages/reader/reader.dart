@@ -876,6 +876,12 @@ abstract interface class _ImageViewController {
   _Anime4KPageStatus getAnime4KPageStatus();
 
   void refreshVisibleImages();
+
+  /// Releases all cached anime4K results on currently mounted image widgets.
+  ///
+  /// Called when the chapter changes so processed bytes do not stay resident
+  /// in memory during long continuous-mode reading sessions.
+  void releaseAnime4KResults();
 }
 
 class _Anime4KPageStatus {

@@ -765,6 +765,15 @@ class _GalleryModeState extends State<_GalleryMode>
       }
     }
   }
+
+  @override
+  void releaseAnime4KResults() {
+    for (final imageState in imageStates) {
+      if (imageState.mounted) {
+        (imageState as _ComicImageState).releaseAnime4KResult();
+      }
+    }
+  }
 }
 
 const Set<PointerDeviceKind> _kTouchLikeDeviceTypes = <PointerDeviceKind>{
@@ -1376,6 +1385,15 @@ class _ContinuousModeState extends State<_ContinuousMode>
     for (final imageState in imageStates) {
       if (imageState.mounted) {
         (imageState as _ComicImageState).setState(() {});
+      }
+    }
+  }
+
+  @override
+  void releaseAnime4KResults() {
+    for (final imageState in imageStates) {
+      if (imageState.mounted) {
+        (imageState as _ComicImageState).releaseAnime4KResult();
       }
     }
   }
