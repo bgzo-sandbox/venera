@@ -227,9 +227,11 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
     final scaleFactor =
         (context.anime4KSetting<num>('anime4KScaleFactor'))?.toDouble() ?? 2.0;
     final pushStrength =
-        (context.anime4KSetting<num>('anime4KPushStrength'))?.toDouble() ?? 0.31;
+        (context.anime4KSetting<num>('anime4KPushStrength'))?.toDouble() ??
+        0.31;
     final pushGradStrength =
-        (context.anime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ?? 1.0;
+        (context.anime4KSetting<num>('anime4KPushGradStrength'))?.toDouble() ??
+        1.0;
 
     final result = await SuperResolutionService.instance.processImage(
       SuperResolutionRequest(
