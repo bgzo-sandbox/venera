@@ -74,10 +74,11 @@ extension _ReaderContext on BuildContext {
   T? anime4KSetting<T>(String key) {
     final reader = this.reader;
     return appdata.settings.getReaderSetting(
-      reader.cid,
-      reader.type.sourceKey,
-      key,
-    ) as T?;
+          reader.cid,
+          reader.type.sourceKey,
+          key,
+        )
+        as T?;
   }
 }
 

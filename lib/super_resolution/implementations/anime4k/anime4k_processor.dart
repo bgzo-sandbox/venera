@@ -78,7 +78,7 @@ SuperResolutionOutput? _processAnime4KRequest(_Anime4KProcessorInput input) {
       scaleFactor: input.scaleFactor,
     );
     final result = upscaler.upscale(sourceImage);
-    if (_isPng(input.imageBytes)) {
+    if (isPngBytes(input.imageBytes)) {
       return SuperResolutionOutput(
         bytes: Uint8List.fromList(img.encodePng(result)),
         fileExtension: 'png',
@@ -99,7 +99,7 @@ SuperResolutionOutput? _processAnime4KRequest(_Anime4KProcessorInput input) {
 /// PNG keeps alpha and is lossless; everything else (JPEG, WebP, ...) is
 /// re-encoded as JPEG to avoid bloating the cache with lossless re-encodes of
 /// lossy sources.
-bool _isPng(Uint8List bytes) {
+bool isPngBytes(Uint8List bytes) {
   if (bytes.length < 4) {
     return false;
   }
