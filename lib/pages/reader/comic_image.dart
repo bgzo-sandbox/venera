@@ -92,6 +92,18 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
 
   bool get isAnime4KProcessing => _isUpscaling;
 
+  /// Drops the upscaled result and pending processing state.
+  ///
+  /// Called by the reader controller when the chapter changes so processed
+  /// bytes do not stay resident in memory while the widget is off-screen.
+  void releaseAnime4KResult() {
+    _upscaledBytes = null;
+    _isUpscaling = false;
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   String? get readerImageKey {
     final source = _getAnime4KSourceProvider(widget.image);
     if (source is ReaderImageProvider) {
