@@ -3,7 +3,9 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as path;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:venera/foundation/app.dart';
 import 'package:venera/super_resolution/cache/super_resolution_cache_store.dart';
 import 'package:venera/super_resolution/implementations/anime4k/anime4k_processor.dart';
 import 'package:venera/super_resolution/implementations/anime4k/anime4k_upscaler.dart';
@@ -67,11 +69,16 @@ void main() {
 
   group('SuperResolutionCacheStore', () {
     late Directory tempDir;
+    late Directory legacyTempDir;
     late SuperResolutionCacheStore store;
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('sr_cache_test');
-      PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+      legacyTempDir = await Directory.systemTemp.createTemp(
+        'sr_cache_test_legacy',
+      );
+      PathProviderPlatform.instance = _FakePathProvider(legacyTempDir.path);
+      App.cachePath = tempDir.path;
       store = SuperResolutionCacheStore();
       await store.init();
     });
@@ -79,6 +86,37 @@ void main() {
     tearDown(() async {
       await store.clear();
       await tempDir.delete(recursive: true);
+      await legacyTempDir.delete(recursive: true);
+    });
+
+    test('stores files under the app cache directory', () {
+      final cachePath = store.getCachePath('key-a', extension: 'png')!;
+      expect(
+        cachePath,
+        startsWith(path.join(tempDir.path, 'super_resolution_cache')),
+      );
+    });
+
+    test('migrates files from the legacy temporary directory', () async {
+      // Simulate an older build that stored outputs under getTemporaryDirectory().
+      final legacyDir = Directory(
+        path.join(legacyTempDir.path, 'super_resolution_cache'),
+      );
+      await legacyDir.create(recursive: true);
+      final legacyFile = File(path.join(legacyDir.path, 'legacy.png'));
+      await legacyFile.writeAsBytes([1, 2, 3, 4]);
+
+      final migrated = SuperResolutionCacheStore();
+      await migrated.init();
+
+      final newPath = path.join(
+        path.join(App.cachePath, 'super_resolution_cache'),
+        'legacy.png',
+      );
+      expect(await File(newPath).exists(), isTrue);
+      expect(await File(newPath).readAsBytes(), [1, 2, 3, 4]);
+      expect(await legacyDir.exists(), isFalse);
+      expect(await migrated.getCacheSize(), 4);
     });
 
     test('writes and reads files with format-accurate extensions', () async {

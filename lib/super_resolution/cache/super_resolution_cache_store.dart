@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:venera/foundation/app.dart';
 import 'package:venera/foundation/log.dart';
 
 /// File-backed cache for processed super resolution outputs.
@@ -36,11 +37,15 @@ class SuperResolutionCacheStore {
     _limitSize = mb * 1024 * 1024;
   }
 
-  /// Resolves and creates the temporary cache directory at startup.
+  /// Resolves and creates the cache directory at startup.
+  ///
+  /// The cache lives under [App.cachePath] next to the main image cache so it
+  /// is accounted for by the app's own cache accounting and is not wiped by OS
+  /// cleanup of the temporary directory.
   Future<void> init() async {
     try {
-      final dir = await getTemporaryDirectory();
-      _cacheDir = path.join(dir.path, _cacheDirectoryName);
+      _cacheDir = path.join(App.cachePath, _cacheDirectoryName);
+      await _migrateLegacyCache();
       final cacheDirectory = Directory(_cacheDir!);
       if (!await cacheDirectory.exists()) {
         await cacheDirectory.create(recursive: true);
@@ -49,6 +54,43 @@ class SuperResolutionCacheStore {
       Log.info('SuperResolution', 'cache initialized at $_cacheDir');
     } catch (e) {
       Log.error('SuperResolution', 'cache init error: $e');
+    }
+  }
+
+  /// Moves files written by older builds (temporary-directory based) into the
+  /// app cache directory so cached results survive OS cache cleanup and are
+  /// covered by the app's own cache accounting.
+  Future<void> _migrateLegacyCache() async {
+    if (_cacheDir == null) {
+      return;
+    }
+    try {
+      final legacyDir = Directory(
+        path.join((await getTemporaryDirectory()).path, _cacheDirectoryName),
+      );
+      if (!await legacyDir.exists()) {
+        return;
+      }
+      final target = Directory(_cacheDir!);
+      if (!await target.exists()) {
+        await target.create(recursive: true);
+      }
+      await for (final entity in legacyDir.list(recursive: true)) {
+        if (entity is File) {
+          try {
+            await entity.rename(
+              path.join(target.path, path.basename(entity.path)),
+            );
+          } catch (_) {
+            // A conflicting target name is fine: both entries map to the same
+            // logical cache key, so the newest content wins via write-back.
+          }
+        }
+      }
+      await legacyDir.delete(recursive: true);
+      Log.info('SuperResolution', 'legacy cache migrated');
+    } catch (e) {
+      Log.error('SuperResolution', 'legacy cache migration error: $e');
     }
   }
 
