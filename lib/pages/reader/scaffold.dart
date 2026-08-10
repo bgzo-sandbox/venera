@@ -29,12 +29,15 @@ class _ReaderSafeAreaScope extends InheritedWidget {
 
 class _ReaderScaffoldState extends State<_ReaderScaffold> {
   bool _isOpen = false;
+  bool _showAnime4KProcessed = true;
 
   static const kTopBarHeight = 56.0;
 
   static const kBottomBarHeight = 105.0;
 
   bool get isOpen => _isOpen;
+
+  bool get showAnime4KProcessed => _showAnime4KProcessed;
 
   bool get isReversed =>
       context.reader.mode == ReaderMode.galleryRightToLeft ||
@@ -164,6 +167,64 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
     setState(() {});
   }
 
+  bool get isAnime4KEnabled =>
+      context.anime4KSetting<bool>('enableAnime4K') == true;
+
+  void toggleAnime4KDisplay() {
+    setState(() {
+      _showAnime4KProcessed = !_showAnime4KProcessed;
+    });
+    context.reader._imageViewController?.refreshVisibleImages();
+  }
+
+  _Anime4KPageStatus get anime4KPageStatus =>
+      context.reader._imageViewController?.getAnime4KPageStatus() ??
+      const _Anime4KPageStatus(
+        totalImages: 0,
+        processedImages: 0,
+        processingImages: 0,
+      );
+
+  bool get hasAnime4KResultOnPage => anime4KPageStatus.processedImages > 0;
+
+  bool get canSwitchToOriginal =>
+      _showAnime4KProcessed && hasAnime4KResultOnPage;
+
+  bool get canSwitchToSuperResolution => !_showAnime4KProcessed;
+
+  String get anime4KButtonTooltip {
+    final status = anime4KPageStatus;
+    if (!status.hasImages) {
+      return '当前页无图片';
+    }
+    if (canSwitchToOriginal) {
+      return '切换到原图';
+    }
+    if (canSwitchToSuperResolution) {
+      return hasAnime4KResultOnPage ? '切换到超分' : '显示超分';
+    }
+    if (status.isProcessing) {
+      return '超分处理中';
+    }
+    return '等待超分完成';
+  }
+
+  IconData get anime4KButtonIcon {
+    if (canSwitchToOriginal) {
+      return Icons.image_outlined;
+    }
+    return Icons.auto_awesome;
+  }
+
+  void handleAnime4KButtonPressed() {
+    // Keep the button interactive and focus-stable. Only the action itself is
+    // conditional on whether we already have an Anime4K result to switch to.
+    if (!(canSwitchToOriginal || canSwitchToSuperResolution)) {
+      return;
+    }
+    toggleAnime4KDisplay();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOnChapterCommentsPage = context.reader.isOnChapterCommentsPage;
@@ -282,6 +343,19 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
                   onPressed: openSetting,
                 ),
               ),
+              if (isAnime4KEnabled)
+                Focus(
+                  canRequestFocus: false,
+                  skipTraversal: true,
+                  descendantsAreFocusable: false,
+                  child: Tooltip(
+                    message: anime4KButtonTooltip,
+                    child: IconButton(
+                      icon: Icon(anime4KButtonIcon),
+                      onPressed: handleAnime4KButtonPressed,
+                    ),
+                  ),
+                ),
               const SizedBox(width: 8),
             ],
           ),

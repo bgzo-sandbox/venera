@@ -445,14 +445,14 @@ Future<bool> saveFile({
     throw Exception("data and file cannot be null at the same time");
   }
   IO._isSelectingFiles = true;
+  var cachePath = FilePath.join(App.cachePath, filename);
   try {
     if (data != null) {
-      var cache = FilePath.join(App.cachePath, filename);
-      if (File(cache).existsSync()) {
-        File(cache).deleteSync();
+      if (File(cachePath).existsSync()) {
+        File(cachePath).deleteSync();
       }
-      await File(cache).writeAsBytes(data);
-      file = File(cache);
+      await File(cachePath).writeAsBytes(data);
+      file = File(cachePath);
     }
     if (App.isMobile) {
       // FIX: iOS export dialog cannot show filename and save.
@@ -474,6 +474,12 @@ Future<bool> saveFile({
       return false;
     }
   } finally {
+    // Drop the cache copy written from [data]: the bytes were already handed
+    // over to the system save dialog. Keeping the copy would let files
+    // accumulate in the app cache directory with no cleanup path.
+    if (data != null) {
+      File(cachePath).deleteIgnoreError();
+    }
     Future.delayed(const Duration(milliseconds: 100), () {
       IO._isSelectingFiles = false;
     });
@@ -533,6 +539,11 @@ class Share {
       var file = File(FilePath.join(App.cachePath, filename));
       file.writeAsBytesSync(data);
       s.SharePlus.instance.share(s.ShareParams(files: [s.XFile(file.path)]));
+      // The share sheet reads the file asynchronously; remove the cache copy
+      // shortly after so it does not accumulate in the app cache directory.
+      Future.delayed(const Duration(minutes: 1), () {
+        file.deleteIgnoreError();
+      });
     }
   }
 

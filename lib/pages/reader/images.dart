@@ -394,18 +394,24 @@ class _GalleryModeState extends State<_GalleryMode>
             photoViewControllers[index] ??= PhotoViewController();
 
             if (reader.imagesPerPage == 1 || pageImages.length == 1) {
-              return PhotoViewGalleryPageOptions(
-                filterQuality: FilterQuality.medium,
+              return PhotoViewGalleryPageOptions.customChild(
+                childSize: MediaQuery.of(context).size,
                 controller: photoViewControllers[index],
-                imageProvider: _createImageProviderFromKey(
-                  pageImages[0],
-                  context,
-                  startIndex + 1,
+                minScale: PhotoViewComputedScale.contained * 1.0,
+                maxScale: PhotoViewComputedScale.covered * 10.0,
+                child: ComicImage(
+                  filterQuality: FilterQuality.medium,
+                  image: _createImageProviderFromKey(
+                    pageImages[0],
+                    context,
+                    startIndex + 1,
+                  ),
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.contain,
+                  onInit: (state) => imageStates.add(state),
+                  onDispose: (state) => imageStates.remove(state),
                 ),
-                fit: BoxFit.contain,
-                errorBuilder: (_, error, s, retry) {
-                  return NetworkError(message: error.toString(), retry: retry);
-                },
               );
             }
 
@@ -715,6 +721,58 @@ class _GalleryModeState extends State<_GalleryMode>
     }
 
     return reader.images![startIndex];
+  }
+
+  @override
+  _Anime4KPageStatus getAnime4KPageStatus() {
+    final range = getCurrentPageImageRange();
+    if (range == null) {
+      return const _Anime4KPageStatus(
+        totalImages: 0,
+        processedImages: 0,
+        processingImages: 0,
+      );
+    }
+
+    final (startIndex, endIndex) = range;
+    final currentKeys = reader.images!.sublist(startIndex, endIndex).toSet();
+    int processed = 0;
+    int processing = 0;
+    for (final imageState in imageStates) {
+      final state = imageState as _ComicImageState;
+      if (!currentKeys.contains(state.readerImageKey)) {
+        continue;
+      }
+      if (state.hasAnime4KResult) {
+        processed++;
+      } else if (state.isAnime4KProcessing) {
+        processing++;
+      }
+    }
+
+    return _Anime4KPageStatus(
+      totalImages: currentKeys.length,
+      processedImages: processed,
+      processingImages: processing,
+    );
+  }
+
+  @override
+  void refreshVisibleImages() {
+    for (final imageState in imageStates) {
+      if (imageState.mounted) {
+        (imageState as _ComicImageState).setState(() {});
+      }
+    }
+  }
+
+  @override
+  void releaseAnime4KResults() {
+    for (final imageState in imageStates) {
+      if (imageState.mounted) {
+        (imageState as _ComicImageState).releaseAnime4KResult();
+      }
+    }
   }
 }
 
@@ -1288,6 +1346,56 @@ class _ContinuousModeState extends State<_ContinuousMode>
       }
     }
     return imageKey;
+  }
+
+  @override
+  _Anime4KPageStatus getAnime4KPageStatus() {
+    if (reader.images == null || reader.images!.isEmpty) {
+      return const _Anime4KPageStatus(
+        totalImages: 0,
+        processedImages: 0,
+        processingImages: 0,
+      );
+    }
+
+    final currentKey = reader.images![reader.page - 1];
+    int processed = 0;
+    int processing = 0;
+    for (final imageState in imageStates) {
+      final state = imageState as _ComicImageState;
+      if (state.readerImageKey != currentKey) {
+        continue;
+      }
+      if (state.hasAnime4KResult) {
+        processed++;
+      } else if (state.isAnime4KProcessing) {
+        processing++;
+      }
+    }
+
+    return _Anime4KPageStatus(
+      totalImages: 1,
+      processedImages: processed > 0 ? 1 : 0,
+      processingImages: processing > 0 ? 1 : 0,
+    );
+  }
+
+  @override
+  void refreshVisibleImages() {
+    for (final imageState in imageStates) {
+      if (imageState.mounted) {
+        (imageState as _ComicImageState).setState(() {});
+      }
+    }
+  }
+
+  @override
+  void releaseAnime4KResults() {
+    for (final imageState in imageStates) {
+      if (imageState.mounted) {
+        (imageState as _ComicImageState).releaseAnime4KResult();
+      }
+    }
   }
 }
 

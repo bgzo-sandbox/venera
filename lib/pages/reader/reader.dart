@@ -34,6 +34,8 @@ import 'package:venera/foundation/log.dart';
 import 'package:venera/foundation/res.dart';
 import 'package:venera/network/images.dart';
 import 'package:venera/pages/settings/settings_page.dart';
+import 'package:venera/super_resolution/models/super_resolution_request.dart';
+import 'package:venera/super_resolution/super_resolution_service.dart';
 import 'package:venera/utils/clipboard_image.dart';
 import 'package:venera/utils/ext.dart';
 import 'package:venera/utils/file_type.dart';
@@ -64,6 +66,20 @@ extension _ReaderContext on BuildContext {
 
   _ReaderScaffoldState get readerScaffold =>
       findAncestorStateOfType<_ReaderScaffoldState>()!;
+
+  /// Reads a reader setting with the anime4K preference cascade.
+  ///
+  /// Single access point for anime4K settings so every caller resolves the
+  /// same value: comic-specific settings first, then device/global settings.
+  T? anime4KSetting<T>(String key) {
+    final reader = this.reader;
+    return appdata.settings.getReaderSetting(
+          reader.cid,
+          reader.type.sourceKey,
+          key,
+        )
+        as T?;
+  }
 }
 
 class Reader extends StatefulWidget {
@@ -746,6 +762,9 @@ abstract mixin class _ReaderLocation {
 
   bool toChapter(int c, {bool toLastPage = false}) {
     if (_validateChapter(c) && !isLoading) {
+      // Drop anime4K results of the old chapter so processed bytes do not
+      // stay resident in memory while reading a long continuous session.
+      _imageViewController?.releaseAnime4KResults();
       chapter = c;
       page = 1;
       _jumpToLastPageOnLoad = toLastPage;
@@ -870,4 +889,32 @@ abstract interface class _ImageViewController {
   Future<Uint8List?> getImageByOffset(Offset offset);
 
   String? getImageKeyByOffset(Offset offset);
+
+  _Anime4KPageStatus getAnime4KPageStatus();
+
+  void refreshVisibleImages();
+
+  /// Releases all cached anime4K results on currently mounted image widgets.
+  ///
+  /// Called when the chapter changes so processed bytes do not stay resident
+  /// in memory during long continuous-mode reading sessions.
+  void releaseAnime4KResults();
+}
+
+class _Anime4KPageStatus {
+  const _Anime4KPageStatus({
+    required this.totalImages,
+    required this.processedImages,
+    required this.processingImages,
+  });
+
+  final int totalImages;
+  final int processedImages;
+  final int processingImages;
+
+  bool get hasImages => totalImages > 0;
+
+  bool get fullyProcessed => hasImages && processedImages == totalImages;
+
+  bool get isProcessing => processingImages > 0;
 }
