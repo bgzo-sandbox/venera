@@ -158,6 +158,11 @@ class _ComicImageState extends State<ComicImage> with WidgetsBindingObserver {
   }
 
   Future<void> _triggerImageUpscale() async {
+    // This runs from didChangeDependencies() during the build phase. Defer
+    // the synchronous setState/notify below out of the build phase, otherwise
+    // calling setState on the (ancestor) _ReaderScaffold throws the
+    // "setState() called during build" exception.
+    await Future<void>.delayed(Duration.zero);
     if (!mounted || _isUpscaling || _upscaledBytes != null) {
       if (mounted && (_isUpscaling || _upscaledBytes != null)) {
         Log.info(
