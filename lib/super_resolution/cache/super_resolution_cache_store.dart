@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:venera/foundation/app.dart';
@@ -27,6 +27,13 @@ class SuperResolutionCacheStore {
 
   /// Current total size of cached files in bytes.
   int _currentSize = 0;
+
+  /// Guards against overlapping eviction passes.
+  ///
+  /// Eviction runs in a background isolate and updates [_currentSize] on the
+  /// main isolate when it returns. The flag debounces writes that arrive while
+  /// a pass is already in flight so we never stack concurrent scans.
+  bool _evicting = false;
 
   String? get cacheDirectory => _cacheDir;
 
@@ -159,49 +166,36 @@ class SuperResolutionCacheStore {
     }
   }
 
-  /// Evicts the oldest cached files until the total size is under the limit.
+  /// Evicts cached files until the total size drops to half the limit.
+  ///
+  /// Runs entirely in a background isolate ([compute]) so the blocking
+  /// directory scan and per-file deletions never touch the main isolate and
+  /// cannot stall the reader UI. Deleting down to half the limit (instead of
+  /// just under it) leaves a large headroom buffer, so eviction fires rarely
+  /// instead of thrashing on every subsequent write while the cache hovers at
+  /// the ceiling.
   Future<void> _evictIfNeeded() async {
     if (_currentSize <= _limitSize || _cacheDir == null) {
       return;
     }
-    List<File> files;
-    try {
-      final dir = Directory(_cacheDir!);
-      files = dir.listSync().whereType<File>().toList()
-        ..sort((a, b) {
-          final timeComparison = a.lastModifiedSync().compareTo(
-            b.lastModifiedSync(),
-          );
-          // Break ties deterministically: filesystems with coarse timestamp
-          // granularity can report identical mtimes for distinct files.
-          if (timeComparison != 0) {
-            return timeComparison;
-          }
-          return a.path.compareTo(b.path);
-        });
-    } catch (e) {
-      Log.error('SuperResolution', 'cache eviction error: $e');
+    if (_evicting) {
+      // A pass is already in flight; the aggressive half-limit target means
+      // the extra write can wait for the next cycle instead of stacking scans.
       return;
     }
-    for (final file in files) {
-      if (_currentSize <= _limitSize) {
-        break;
-      }
-      try {
-        final size = await file.length();
-        await file.delete();
-        _currentSize -= size;
-        if (_currentSize < 0) {
-          _currentSize = 0;
-        }
-      } catch (e) {
-        // A single failing entry (locked, permission, already deleted) must
-        // not abort the whole eviction pass; keep going with the others.
-        Log.error(
-          'SuperResolution',
-          'cache eviction error for ${file.path}: $e',
-        );
-      }
+    _evicting = true;
+    try {
+      final dir = _cacheDir!;
+      final target = _limitSize ~/ 2;
+      final newSize = await compute(
+        _evictInIsolate,
+        _EvictRequest(cacheDir: dir, targetSize: target),
+      );
+      _currentSize = newSize < 0 ? 0 : newSize;
+    } catch (e) {
+      Log.error('SuperResolution', 'cache eviction error: $e');
+    } finally {
+      _evicting = false;
     }
   }
 
@@ -246,5 +240,66 @@ class SuperResolutionCacheStore {
       Log.error('SuperResolution', 'cache size error: $e');
       return 0;
     }
+  }
+}
+
+/// Serializable payload handed to the eviction isolate.
+class _EvictRequest {
+  const _EvictRequest({required this.cacheDir, required this.targetSize});
+
+  final String cacheDir;
+
+  /// Eviction stops once the cache size is at or below this value.
+  final int targetSize;
+}
+
+/// Background-isolate eviction pass.
+///
+/// Runs on a worker isolate via [compute]. Returns the remaining cache size in
+/// bytes so the caller can refresh [_currentSize] accurately. All blocking
+/// `*Sync` I/O is fine here because this never runs on the main isolate.
+int _evictInIsolate(_EvictRequest req) {
+  try {
+    final dir = Directory(req.cacheDir);
+    if (!dir.existsSync()) {
+      return 0;
+    }
+    final files = dir.listSync().whereType<File>().toList()
+      ..sort((a, b) {
+        final timeComparison = a.lastModifiedSync().compareTo(
+          b.lastModifiedSync(),
+        );
+        // Break ties deterministically: filesystems with coarse timestamp
+        // granularity can report identical mtimes for distinct files.
+        if (timeComparison != 0) {
+          return timeComparison;
+        }
+        return a.path.compareTo(b.path);
+      });
+
+    var currentSize = 0;
+    for (final file in files) {
+      currentSize += file.lengthSync();
+    }
+    if (currentSize <= req.targetSize) {
+      return currentSize;
+    }
+
+    for (final file in files) {
+      if (currentSize <= req.targetSize) {
+        break;
+      }
+      try {
+        final size = file.lengthSync();
+        file.deleteSync();
+        currentSize -= size;
+      } catch (_) {
+        // A single failing entry (locked, permission, already deleted) must
+        // not abort the whole eviction pass; keep going with the others.
+      }
+    }
+    return currentSize < 0 ? 0 : currentSize;
+  } catch (_) {
+    return 0;
   }
 }
