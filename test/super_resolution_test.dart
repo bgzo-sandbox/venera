@@ -138,24 +138,36 @@ void main() {
       expect(await store.read('key-a', extension: 'jpg'), isNull);
     });
 
-    test('evicts the oldest file once the size limit is exceeded', () async {
-      await store.setLimitSize(1); // 1MB
-      const chunk = 700 * 1024;
-      await store.write('old', Uint8List(chunk), extension: 'png');
-      final oldPath = store.getCachePath('old', extension: 'png')!;
-      // Pin an explicit older mtime instead of relying on wall-clock deltas:
-      // CI filesystems may report identical timestamps for files written in
-      // quick succession, making the eviction order ambiguous.
-      await File(oldPath).setLastModified(DateTime(2020, 1, 1));
-      await store.write('new', Uint8List(chunk), extension: 'png');
-      final newPath = store.getCachePath('new', extension: 'png')!;
-
+    test('evicts the oldest files down to half the size limit', () async {
+      await store.setLimitSize(2); // 2MB limit, 1MB half-limit target
+      const chunk = 300 * 1024;
+      const names = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+      final paths = <String, String>{};
+      for (var i = 0; i < names.length; i++) {
+        final name = names[i];
+        await store.write(name, Uint8List(chunk), extension: 'png');
+        final p = store.getCachePath(name, extension: 'png')!;
+        paths[name] = p;
+        // Pin strictly increasing mtimes (oldest = 'a') instead of relying on
+        // wall-clock deltas: CI filesystems may report identical timestamps for
+        // files written in quick succession, making the eviction order ambiguous.
+        await File(p).setLastModified(DateTime(2020, 1, i + 1));
+      }
+      // 7 * 300KB = 2.1MB > 2MB limit, so eviction runs to the 1MB target.
+      // Oldest-first deletion: a,b,c,d removed (1.2MB), leaving 900KB <= 1MB.
       expect(
-        await File(oldPath).exists(),
+        await File(paths['a']!).exists(),
         isFalse,
         reason: 'oldest entry must be evicted first',
       );
-      expect(await File(newPath).exists(), isTrue);
+      for (final name in ['b', 'c', 'd']) {
+        expect(await File(paths[name]!).exists(), isFalse,
+            reason: '$name is older and must be evicted before newer files');
+      }
+      for (final name in ['e', 'f', 'g']) {
+        expect(await File(paths[name]!).exists(), isTrue,
+            reason: '$name must survive the eviction');
+      }
       expect(await store.getCacheSize(), lessThanOrEqualTo(1024 * 1024));
     });
 
@@ -178,17 +190,50 @@ void main() {
       );
     });
 
+    test('currentSize stays consistent with disk across a racing eviction', () async {
+      await store.setLimitSize(1); // 1MB limit, 500KB half-limit target
+      const chunk = 400 * 1024;
+      // Two 400KB writes (800KB) are still under the 1MB limit, so this first
+      // write does not yet trigger eviction.
+      await store.write('a', Uint8List(chunk), extension: 'png');
+      await store.write('b', Uint8List(chunk), extension: 'png');
+
+      // The third write pushes total to 1.2MB > 1MB and starts an eviction pass
+      // in the background. Do not await it so the following write can land
+      // while the isolate may still be scanning.
+      final evictFuture = store.write('c', Uint8List(chunk), extension: 'png');
+      await store.write('d', Uint8List(100), extension: 'png');
+      await evictFuture;
+
+      // After all writes and the eviction settle, the tracked size must match
+      // what is actually on disk. The overwrite bug set _currentSize from a
+      // stale isolate total and would fail this equality.
+      expect(store.currentSize, await store.getCacheSize());
+    });
+
     test('lowering the limit evicts entries immediately', () async {
-      await store.write('a', Uint8List(600 * 1024), extension: 'png');
-      await store.write('b', Uint8List(600 * 1024), extension: 'png');
-      expect(await store.getCacheSize(), greaterThan(1024 * 1024));
+      await store.setLimitSize(2); // 2MB limit, 1MB half-limit target
+      const chunk = 400 * 1024;
+      const names = ['a', 'b', 'c'];
+      final paths = <String, String>{};
+      for (var i = 0; i < names.length; i++) {
+        final name = names[i];
+        await store.write(name, Uint8List(chunk), extension: 'png');
+        final p = store.getCachePath(name, extension: 'png')!;
+        paths[name] = p;
+        await File(p).setLastModified(DateTime(2020, 1, i + 1));
+      }
+      // 3 * 400KB = 1.2MB <= 2MB, so no eviction yet.
+      expect(await store.getCacheSize(), 1200 * 1024);
 
-      await store.setLimitSize(1); // 1MB, applied without another write
+      await store.setLimitSize(1); // 1MB limit, 500KB target, applied without a write
 
-      final aPath = store.getCachePath('a', extension: 'png')!;
-      final bPath = store.getCachePath('b', extension: 'png')!;
-      expect(await File(aPath).exists() || await File(bPath).exists(), isTrue);
-      expect(await store.getCacheSize(), lessThanOrEqualTo(1024 * 1024));
+      // Oldest-first to the 500KB target: a (400KB) and b (400KB) evicted,
+      // leaving c (400KB) <= 500KB.
+      expect(await File(paths['a']!).exists(), isFalse);
+      expect(await File(paths['b']!).exists(), isFalse);
+      expect(await File(paths['c']!).exists(), isTrue);
+      expect(await store.getCacheSize(), lessThanOrEqualTo(500 * 1024));
     });
   });
 
