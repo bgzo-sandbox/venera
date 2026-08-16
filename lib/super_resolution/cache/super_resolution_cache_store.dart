@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:venera/foundation/app.dart';
@@ -27,6 +27,14 @@ class SuperResolutionCacheStore {
 
   /// Current total size of cached files in bytes.
   int _currentSize = 0;
+
+  /// Single source of truth for an in-flight eviction pass.
+  ///
+  /// Eviction runs in a background isolate and updates [_currentSize] on the
+  /// main isolate when it returns. Holding the running future here lets
+  /// [_evictIfNeeded], [clear] and [getCacheSize] await the same in-flight pass
+  /// instead of stacking concurrent scans or racing its result.
+  Future<void>? _evictionFuture;
 
   String? get cacheDirectory => _cacheDir;
 
@@ -159,49 +167,76 @@ class SuperResolutionCacheStore {
     }
   }
 
-  /// Evicts the oldest cached files until the total size is under the limit.
+  /// Evicts cached files until the total size drops to half the limit.
+  ///
+  /// Runs entirely in a background isolate ([compute]) so the blocking
+  /// directory scan and per-file deletions never touch the main isolate and
+  /// cannot stall the reader UI. Deleting down to half the limit (instead of
+  /// just under it) leaves a large headroom buffer, so eviction fires rarely
+  /// instead of thrashing on every subsequent write while the cache hovers at
+  /// the ceiling.
   Future<void> _evictIfNeeded() async {
     if (_currentSize <= _limitSize || _cacheDir == null) {
       return;
     }
-    List<File> files;
-    try {
-      final dir = Directory(_cacheDir!);
-      files = dir.listSync().whereType<File>().toList()
-        ..sort((a, b) {
-          final timeComparison = a.lastModifiedSync().compareTo(
-            b.lastModifiedSync(),
-          );
-          // Break ties deterministically: filesystems with coarse timestamp
-          // granularity can report identical mtimes for distinct files.
-          if (timeComparison != 0) {
-            return timeComparison;
-          }
-          return a.path.compareTo(b.path);
-        });
-    } catch (e) {
-      Log.error('SuperResolution', 'cache eviction error: $e');
-      return;
-    }
-    for (final file in files) {
+    final inflight = _evictionFuture;
+    if (inflight != null) {
+      // A pass is already in flight. Writes that landed while it scanned have
+      // already increased _currentSize, so once it settles, recheck against the
+      // *current* limit. This both re-arms eviction during write bursts and
+      // picks up a limit lowered by setLimitSize mid-pass (the pass itself ran
+      // against the old target).
+      await inflight;
       if (_currentSize <= _limitSize) {
-        break;
+        return;
       }
-      try {
-        final size = await file.length();
-        await file.delete();
-        _currentSize -= size;
-        if (_currentSize < 0) {
-          _currentSize = 0;
-        }
-      } catch (e) {
-        // A single failing entry (locked, permission, already deleted) must
-        // not abort the whole eviction pass; keep going with the others.
+      // A sibling fall-through that settled on the same microtask flush may
+      // already have re-armed _evictionFuture. Don't schedule a duplicate pass.
+      if (_evictionFuture != null) {
+        return;
+      }
+      // Fall through to schedule a fresh pass against the current limit.
+    }
+    final future = _runEviction();
+    _evictionFuture = future;
+    try {
+      await future;
+    } finally {
+      // Only clear the slot if we still own it: a sibling fall-through may have
+      // overwritten _evictionFuture while our pass was running, and clobbering
+      // it here would orphan their in-flight pass from clear()/getCacheSize().
+      if (_evictionFuture == future) {
+        _evictionFuture = null;
+      }
+    }
+  }
+
+  /// Runs a single background-isolate eviction pass and applies the result.
+  ///
+  /// The isolate returns the number of *deleted bytes* (not the remaining
+  /// total), so the delta is applied incrementally on the main isolate. That
+  /// keeps `write()` increments that land while the isolate scans from being
+  /// overwritten, preserving additive consistency between [_currentSize] and
+  /// the directory contents.
+  Future<void> _runEviction() async {
+    final dir = _cacheDir!;
+    final target = _limitSize ~/ 2;
+    try {
+      final result = await compute(
+        _evictInIsolate,
+        _EvictRequest(cacheDir: dir, targetSize: target),
+      );
+      if (await Directory(dir).exists()) {
+        _currentSize = (_currentSize - result.deletedBytes).clamp(0, 1 << 62);
+      }
+      if (result.failedCount > 0) {
         Log.error(
           'SuperResolution',
-          'cache eviction error for ${file.path}: $e',
+          'cache eviction: ${result.failedCount} files failed to evict',
         );
       }
+    } catch (e) {
+      Log.error('SuperResolution', 'cache eviction error: $e');
     }
   }
 
@@ -210,6 +245,7 @@ class SuperResolutionCacheStore {
     if (_cacheDir == null) {
       return;
     }
+    await _evictionFuture;
     try {
       final dir = Directory(_cacheDir!);
       if (await dir.exists()) {
@@ -228,6 +264,7 @@ class SuperResolutionCacheStore {
     if (_cacheDir == null) {
       return 0;
     }
+    await _evictionFuture;
     try {
       final dir = Directory(_cacheDir!);
       if (!await dir.exists()) {
@@ -247,4 +284,83 @@ class SuperResolutionCacheStore {
       return 0;
     }
   }
+}
+
+/// Serializable payload handed to the eviction isolate.
+class _EvictRequest {
+  const _EvictRequest({required this.cacheDir, required this.targetSize});
+
+  final String cacheDir;
+
+  /// Eviction stops once the cache size is at or below this value.
+  final int targetSize;
+}
+
+/// Background-isolate eviction pass.
+///
+/// Runs on a worker isolate via [compute]. Returns the number of bytes it
+/// deleted plus how many files it failed to delete, so the caller can apply the
+/// delta incrementally on the main isolate without losing concurrent `write()`
+/// accounting. All blocking `*Sync` I/O is fine here because this never runs on
+/// the main isolate.
+_EvictResult _evictInIsolate(_EvictRequest req) {
+  var failedCount = 0;
+  try {
+    final dir = Directory(req.cacheDir);
+    if (!dir.existsSync()) {
+      return const _EvictResult(deletedBytes: 0, failedCount: 0);
+    }
+    final files = dir.listSync().whereType<File>().toList()
+      ..sort((a, b) {
+        final timeComparison = a.lastModifiedSync().compareTo(
+          b.lastModifiedSync(),
+        );
+        // Break ties deterministically: filesystems with coarse timestamp
+        // granularity can report identical mtimes for distinct files.
+        if (timeComparison != 0) {
+          return timeComparison;
+        }
+        return a.path.compareTo(b.path);
+      });
+
+    var currentSize = 0;
+    for (final file in files) {
+      currentSize += file.lengthSync();
+    }
+    if (currentSize <= req.targetSize) {
+      return const _EvictResult(deletedBytes: 0, failedCount: 0);
+    }
+
+    var deletedBytes = 0;
+    for (final file in files) {
+      if (currentSize <= req.targetSize) {
+        break;
+      }
+      try {
+        final size = file.lengthSync();
+        file.deleteSync();
+        currentSize -= size;
+        deletedBytes += size;
+      } catch (_) {
+        // A single failing entry (locked, permission, already deleted) must
+        // not abort the whole eviction pass; keep going with the others.
+        failedCount++;
+      }
+    }
+    return _EvictResult(deletedBytes: deletedBytes, failedCount: failedCount);
+  } catch (_) {
+    return _EvictResult(deletedBytes: 0, failedCount: failedCount);
+  }
+}
+
+/// Result returned from the eviction isolate.
+///
+/// Kept to primitive fields so it can be sent back to the main isolate via
+/// [compute]. `deletedBytes` is applied incrementally by the caller; `failedCount`
+/// surfaces aggregate deletion failures for diagnostics.
+class _EvictResult {
+  const _EvictResult({required this.deletedBytes, required this.failedCount});
+
+  final int deletedBytes;
+  final int failedCount;
 }
