@@ -28,12 +28,13 @@ class SuperResolutionCacheStore {
   /// Current total size of cached files in bytes.
   int _currentSize = 0;
 
-  /// Guards against overlapping eviction passes.
+  /// Single source of truth for an in-flight eviction pass.
   ///
   /// Eviction runs in a background isolate and updates [_currentSize] on the
-  /// main isolate when it returns. The flag debounces writes that arrive while
-  /// a pass is already in flight so we never stack concurrent scans.
-  bool _evicting = false;
+  /// main isolate when it returns. Holding the running future here lets
+  /// [_evictIfNeeded], [clear] and [getCacheSize] await the same in-flight pass
+  /// instead of stacking concurrent scans or racing its result.
+  Future<void>? _evictionFuture;
 
   String? get cacheDirectory => _cacheDir;
 
@@ -178,24 +179,48 @@ class SuperResolutionCacheStore {
     if (_currentSize <= _limitSize || _cacheDir == null) {
       return;
     }
-    if (_evicting) {
+    final inflight = _evictionFuture;
+    if (inflight != null) {
       // A pass is already in flight; the aggressive half-limit target means
       // the extra write can wait for the next cycle instead of stacking scans.
+      await inflight;
       return;
     }
-    _evicting = true;
+    final future = _runEviction();
+    _evictionFuture = future;
     try {
-      final dir = _cacheDir!;
-      final target = _limitSize ~/ 2;
-      final newSize = await compute(
+      await future;
+    } finally {
+      _evictionFuture = null;
+    }
+  }
+
+  /// Runs a single background-isolate eviction pass and applies the result.
+  ///
+  /// The isolate returns the number of *deleted bytes* (not the remaining
+  /// total), so the delta is applied incrementally on the main isolate. That
+  /// keeps `write()` increments that land while the isolate scans from being
+  /// overwritten, preserving additive consistency between [_currentSize] and
+  /// the directory contents.
+  Future<void> _runEviction() async {
+    final dir = _cacheDir!;
+    final target = _limitSize ~/ 2;
+    try {
+      final result = await compute(
         _evictInIsolate,
         _EvictRequest(cacheDir: dir, targetSize: target),
       );
-      _currentSize = newSize < 0 ? 0 : newSize;
+      if (await Directory(dir).exists()) {
+        _currentSize = (_currentSize - result.deletedBytes).clamp(0, 1 << 62);
+      }
+      if (result.failedCount > 0) {
+        Log.error(
+          'SuperResolution',
+          'cache eviction: ${result.failedCount} files failed to evict',
+        );
+      }
     } catch (e) {
       Log.error('SuperResolution', 'cache eviction error: $e');
-    } finally {
-      _evicting = false;
     }
   }
 
@@ -204,6 +229,7 @@ class SuperResolutionCacheStore {
     if (_cacheDir == null) {
       return;
     }
+    await _evictionFuture;
     try {
       final dir = Directory(_cacheDir!);
       if (await dir.exists()) {
@@ -222,6 +248,7 @@ class SuperResolutionCacheStore {
     if (_cacheDir == null) {
       return 0;
     }
+    await _evictionFuture;
     try {
       final dir = Directory(_cacheDir!);
       if (!await dir.exists()) {
@@ -255,14 +282,17 @@ class _EvictRequest {
 
 /// Background-isolate eviction pass.
 ///
-/// Runs on a worker isolate via [compute]. Returns the remaining cache size in
-/// bytes so the caller can refresh [_currentSize] accurately. All blocking
-/// `*Sync` I/O is fine here because this never runs on the main isolate.
-int _evictInIsolate(_EvictRequest req) {
+/// Runs on a worker isolate via [compute]. Returns the number of bytes it
+/// deleted plus how many files it failed to delete, so the caller can apply the
+/// delta incrementally on the main isolate without losing concurrent `write()`
+/// accounting. All blocking `*Sync` I/O is fine here because this never runs on
+/// the main isolate.
+_EvictResult _evictInIsolate(_EvictRequest req) {
+  var failedCount = 0;
   try {
     final dir = Directory(req.cacheDir);
     if (!dir.existsSync()) {
-      return 0;
+      return const _EvictResult(deletedBytes: 0, failedCount: 0);
     }
     final files = dir.listSync().whereType<File>().toList()
       ..sort((a, b) {
@@ -282,9 +312,10 @@ int _evictInIsolate(_EvictRequest req) {
       currentSize += file.lengthSync();
     }
     if (currentSize <= req.targetSize) {
-      return currentSize;
+      return const _EvictResult(deletedBytes: 0, failedCount: 0);
     }
 
+    var deletedBytes = 0;
     for (final file in files) {
       if (currentSize <= req.targetSize) {
         break;
@@ -293,13 +324,27 @@ int _evictInIsolate(_EvictRequest req) {
         final size = file.lengthSync();
         file.deleteSync();
         currentSize -= size;
+        deletedBytes += size;
       } catch (_) {
         // A single failing entry (locked, permission, already deleted) must
         // not abort the whole eviction pass; keep going with the others.
+        failedCount++;
       }
     }
-    return currentSize < 0 ? 0 : currentSize;
+    return _EvictResult(deletedBytes: deletedBytes, failedCount: failedCount);
   } catch (_) {
-    return 0;
+    return _EvictResult(deletedBytes: 0, failedCount: failedCount);
   }
+}
+
+/// Result returned from the eviction isolate.
+///
+/// Kept to primitive fields so it can be sent back to the main isolate via
+/// [compute]. `deletedBytes` is applied incrementally by the caller; `failedCount`
+/// surfaces aggregate deletion failures for diagnostics.
+class _EvictResult {
+  const _EvictResult({required this.deletedBytes, required this.failedCount});
+
+  final int deletedBytes;
+  final int failedCount;
 }
