@@ -190,6 +190,11 @@ class SuperResolutionCacheStore {
       if (_currentSize <= _limitSize) {
         return;
       }
+      // A sibling fall-through that settled on the same microtask flush may
+      // already have re-armed _evictionFuture. Don't schedule a duplicate pass.
+      if (_evictionFuture != null) {
+        return;
+      }
       // Fall through to schedule a fresh pass against the current limit.
     }
     final future = _runEviction();
@@ -197,7 +202,12 @@ class SuperResolutionCacheStore {
     try {
       await future;
     } finally {
-      _evictionFuture = null;
+      // Only clear the slot if we still own it: a sibling fall-through may have
+      // overwritten _evictionFuture while our pass was running, and clobbering
+      // it here would orphan their in-flight pass from clear()/getCacheSize().
+      if (_evictionFuture == future) {
+        _evictionFuture = null;
+      }
     }
   }
 

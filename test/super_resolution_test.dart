@@ -250,6 +250,87 @@ void main() {
       expect(await File(paths['c']!).exists(), isTrue);
       expect(await store.getCacheSize(), lessThanOrEqualTo(500 * 1024));
     });
+
+    test(
+      're-arms and awaits a follow-up pass after an over-half-limit burst',
+      () async {
+        await store.setLimitSize(1); // 1MB limit, 500KB half-limit target
+        const chunk = 300 * 1024;
+        // Prefill to just under the limit so one more small write crosses it and
+        // starts the first eviction pass.
+        await store.write('pre-a', Uint8List(chunk), extension: 'png');
+        await store.write('pre-b', Uint8List(chunk), extension: 'png');
+        await store.write('pre-c', Uint8List(chunk), extension: 'png');
+
+        // The trigger write crosses 1MB and starts a pass; don't await it so the
+        // burst below can land while the isolate scans.
+        final trigger = store.write(
+          'trigger',
+          Uint8List(200 * 1024),
+          extension: 'png',
+        );
+        // Concurrent burst totaling 4 * 300KB = 1.2MB > limit/2 (500KB). Even
+        // after the first pass settles to the half-limit target, size is still
+        // over the limit, so _evictIfNeeded must fall through and schedule a
+        // follow-up pass against the current limit.
+        final burst = <Future<void>>[];
+        for (var i = 0; i < 4; i++) {
+          burst.add(
+            store.write('burst-$i', Uint8List(chunk), extension: 'png'),
+          );
+        }
+        await trigger;
+        await Future.wait(burst);
+
+        // All passes have settled: the tracked size must match what is on disk,
+        // and the identity guard must not have orphaned a residual pass from
+        // clear()/getCacheSize() (which await _evictionFuture).
+        expect(store.currentSize, await store.getCacheSize());
+
+        // Any pass still in flight (or orphaned) must be awaited by clear, so the
+        // cache directory ends up truly empty.
+        await store.clear();
+        expect(await store.getCacheSize(), 0);
+        final dir = Directory(
+          path.join(tempDir.path, 'super_resolution_cache'),
+        );
+        expect(await dir.list().toList(), isEmpty);
+      },
+    );
+
+    test('applies a limit lowered mid-pass with a follow-up eviction', () async {
+      await store.setLimitSize(2); // 2MB limit, 1MB half-limit target
+      const chunk = 400 * 1024;
+      const names = ['a', 'b', 'c', 'd', 'e', 'f'];
+      final paths = <String, String>{};
+      for (var i = 0; i < names.length; i++) {
+        final name = names[i];
+        await store.write(name, Uint8List(chunk), extension: 'png');
+        final p = store.getCachePath(name, extension: 'png')!;
+        paths[name] = p;
+        await File(p).setLastModified(DateTime(2020, 1, i + 1));
+      }
+      // 6 * 400KB = 2.4MB > 2MB, so a pass is triggered by the next write.
+      // Kick it off without awaiting, then lower the limit while it may still
+      // be scanning so the fall-through rechecks against the *new* limit.
+      final trigger = store.write(
+        'trigger',
+        Uint8List(chunk),
+        extension: 'png',
+      );
+      await store.setLimitSize(1); // 1MB limit, 500KB target, mid-pass
+      await trigger;
+
+      // The mid-pass lower limit leaves 7 * 400KB = 2.8MB well above the new
+      // 500KB target, so the follow-up pass must evict oldest-first down to it.
+      expect(store.currentSize, await store.getCacheSize());
+      expect(
+        await store.getCacheSize(),
+        lessThanOrEqualTo(500 * 1024),
+        reason: 'the mid-pass lower limit must be enforced by a follow-up pass',
+      );
+      expect(await File(paths['a']!).exists(), isFalse);
+    });
   });
 
   group('SuperResolutionTaskScheduler', () {
