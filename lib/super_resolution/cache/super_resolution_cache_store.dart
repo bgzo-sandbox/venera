@@ -181,10 +181,16 @@ class SuperResolutionCacheStore {
     }
     final inflight = _evictionFuture;
     if (inflight != null) {
-      // A pass is already in flight; the aggressive half-limit target means
-      // the extra write can wait for the next cycle instead of stacking scans.
+      // A pass is already in flight. Writes that landed while it scanned have
+      // already increased _currentSize, so once it settles, recheck against the
+      // *current* limit. This both re-arms eviction during write bursts and
+      // picks up a limit lowered by setLimitSize mid-pass (the pass itself ran
+      // against the old target).
       await inflight;
-      return;
+      if (_currentSize <= _limitSize) {
+        return;
+      }
+      // Fall through to schedule a fresh pass against the current limit.
     }
     final future = _runEviction();
     _evictionFuture = future;
