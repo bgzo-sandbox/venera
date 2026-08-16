@@ -161,12 +161,18 @@ void main() {
         reason: 'oldest entry must be evicted first',
       );
       for (final name in ['b', 'c', 'd']) {
-        expect(await File(paths[name]!).exists(), isFalse,
-            reason: '$name is older and must be evicted before newer files');
+        expect(
+          await File(paths[name]!).exists(),
+          isFalse,
+          reason: '$name is older and must be evicted before newer files',
+        );
       }
       for (final name in ['e', 'f', 'g']) {
-        expect(await File(paths[name]!).exists(), isTrue,
-            reason: '$name must survive the eviction');
+        expect(
+          await File(paths[name]!).exists(),
+          isTrue,
+          reason: '$name must survive the eviction',
+        );
       }
       expect(await store.getCacheSize(), lessThanOrEqualTo(1024 * 1024));
     });
@@ -190,26 +196,33 @@ void main() {
       );
     });
 
-    test('currentSize stays consistent with disk across a racing eviction', () async {
-      await store.setLimitSize(1); // 1MB limit, 500KB half-limit target
-      const chunk = 400 * 1024;
-      // Two 400KB writes (800KB) are still under the 1MB limit, so this first
-      // write does not yet trigger eviction.
-      await store.write('a', Uint8List(chunk), extension: 'png');
-      await store.write('b', Uint8List(chunk), extension: 'png');
+    test(
+      'currentSize stays consistent with disk across a racing eviction',
+      () async {
+        await store.setLimitSize(1); // 1MB limit, 500KB half-limit target
+        const chunk = 400 * 1024;
+        // Two 400KB writes (800KB) are still under the 1MB limit, so this first
+        // write does not yet trigger eviction.
+        await store.write('a', Uint8List(chunk), extension: 'png');
+        await store.write('b', Uint8List(chunk), extension: 'png');
 
-      // The third write pushes total to 1.2MB > 1MB and starts an eviction pass
-      // in the background. Do not await it so the following write can land
-      // while the isolate may still be scanning.
-      final evictFuture = store.write('c', Uint8List(chunk), extension: 'png');
-      await store.write('d', Uint8List(100), extension: 'png');
-      await evictFuture;
+        // The third write pushes total to 1.2MB > 1MB and starts an eviction pass
+        // in the background. Do not await it so the following write can land
+        // while the isolate may still be scanning.
+        final evictFuture = store.write(
+          'c',
+          Uint8List(chunk),
+          extension: 'png',
+        );
+        await store.write('d', Uint8List(100), extension: 'png');
+        await evictFuture;
 
-      // After all writes and the eviction settle, the tracked size must match
-      // what is actually on disk. The overwrite bug set _currentSize from a
-      // stale isolate total and would fail this equality.
-      expect(store.currentSize, await store.getCacheSize());
-    });
+        // After all writes and the eviction settle, the tracked size must match
+        // what is actually on disk. The overwrite bug set _currentSize from a
+        // stale isolate total and would fail this equality.
+        expect(store.currentSize, await store.getCacheSize());
+      },
+    );
 
     test('lowering the limit evicts entries immediately', () async {
       await store.setLimitSize(2); // 2MB limit, 1MB half-limit target
@@ -226,7 +239,9 @@ void main() {
       // 3 * 400KB = 1.2MB <= 2MB, so no eviction yet.
       expect(await store.getCacheSize(), 1200 * 1024);
 
-      await store.setLimitSize(1); // 1MB limit, 500KB target, applied without a write
+      await store.setLimitSize(
+        1,
+      ); // 1MB limit, 500KB target, applied without a write
 
       // Oldest-first to the 500KB target: a (400KB) and b (400KB) evicted,
       // leaving c (400KB) <= 500KB.
